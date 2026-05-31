@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "project": "fifo",
+  "updated": "2026-06-01",
+  "task_policy": {
+    "source_of_truth": "TASKS.json",
+    "language": "zh-CN",
+    "uncertainty_rule": "影响接口、架构、状态语义、错误语义、验证准则或用户可见结果的不确定点，必须先与用户讨论并确认。",
+    "module_entry_rule": "每个模块在进入 RTL 实现前，必须列完整功能点、设计约束和验证项。",
+    "agent_separation_rule": "RTL 设计和 DV 验证由不同 agent 负责；RTL agent 不修改 DV 期望，DV agent 不修改 RTL 实现。",
+    "commit_rule": "每推进一个有意义的设计、RTL、DV 或流程节点后，立即创建一个聚焦 commit 记录当前状态。"
+  },
+  "agents": [
+    {
+      "id": "A001",
+      "name": "fifo-architect",
+      "prompt_file": "agents/fifo-architect.md",
+      "role": "架构规划和进度把控",
+      "owns": [
+        "任务拆分",
+        "进度状态",
+        "接口和约束一致性",
+        "集成检查",
+        "用户确认问题收敛"
+      ],
+      "write_scope": [
+        "TASKS.json",
+        "docs/",
+        "memory/"
+      ],
+      "must_not": [
+        "直接编写 RTL",
+        "直接编写 DV 参考模型或测试期望",
+        "自行决定未确认接口语义"
+      ]
+    },
+    {
+      "id": "A002",
+      "name": "fifo-rtl-designer",
+      "prompt_file": "agents/fifo-rtl-designer.md",
+      "role": "RTL 设计与实现",
+      "owns": [
+        "SystemVerilog RTL",
+        "综合友好实现",
+        "RTL 局部编译问题修复"
+      ],
+      "write_scope": [
+        "rtl/"
+      ],
+      "must_not": [
+        "修改 DV scoreboard、参考模型或测试期望",
+        "弱化验证以适配 RTL",
+        "自行改变接口、错误语义或状态语义"
+      ]
+    },
+    {
+      "id": "A003",
+      "name": "fifo-dv-verifier",
+      "prompt_file": "agents/fifo-dv-verifier.md",
+      "role": "DV 验证环境与测试",
+      "owns": [
+        "Verilator 验证环境",
+        "参考模型",
+        "scoreboard",
+        "定向和随机测试",
+        "验证覆盖缺口记录"
+      ],
+      "write_scope": [
+        "dv/",
+        "tests/",
+        "scripts/"
+      ],
+      "must_not": [
+        "修改 RTL 实现来让测试通过",
+        "把 RTL bug 写成期望行为",
+        "自行改变验证准则"
+      ]
+    }
+  ],
+  "confirmed_decisions": [
+    {
+      "id": "D001",
+      "title": "通用 push/pop FIFO 组件族",
+      "status": "accepted",
+      "summary": "第一阶段覆盖 fifo_sync_reg、fifo_sync_mem、fifo_async_reg、fifo_async_mem，不绑定 AXI 或其他上层协议。"
+    },
+    {
+      "id": "D002",
+      "title": "错误语义",
+      "status": "accepted",
+      "summary": "overflow 和 underrun 是单周期 critical error pulse。"
+    },
+    {
+      "id": "D003",
+      "title": "异步 FIFO 状态",
+      "status": "accepted",
+      "summary": "wr_level 和 rd_level 是各自时钟域的保守观测值，不承诺全局瞬时精确。"
+    },
+    {
+      "id": "D004",
+      "title": "Fall-through 范围",
+      "status": "accepted",
+      "summary": "fall-through 只在同步 FIFO 中支持，异步 FIFO 第一阶段不支持。"
+    },
+    {
+      "id": "D005",
+      "title": "输出保持、水线断言和满时替换",
+      "status": "accepted",
+      "summary": "pop_data 在无合法读取时保持上一次有效输出；非法水线配置通过 assertion 报出；同步 FIFO 满时 push && pop 合法替换。"
+    },
+    {
+      "id": "D006",
+      "title": "pop_data 复位初值",
+      "status": "accepted",
+      "summary": "复位后 pop_data 统一复位为 0，直到第一次合法读取或同步 fall-through 更新输出。"
+    },
+    {
+      "id": "D007",
+      "title": "三 Agent 分工",
+      "status": "accepted",
+      "summary": "创建 fifo-architect、fifo-rtl-designer、fifo-dv-verifier 三个 agent，分离架构调度、RTL 实现和 DV 验证职责。"
+    },
+    {
+      "id": "D008",
+      "title": "推进即提交",
+      "status": "accepted",
+      "summary": "每推进一个有意义的设计、RTL、DV 或流程节点后，立即在 FIFO 子项目仓库中创建聚焦 commit。"
+    }
+  ],
+  "open_questions": [],
+  "modules": [
+    {
+      "name": "fifo_sync_reg",
+      "status": "planned",
+      "features": [
+        "单时钟 push/pop FIFO",
+        "register array 存储",
+        "低有效 rst_n",
+        "full/empty/level 状态输出",
+        "cfg_almost_full_level/cfg_almost_empty_level 端口水线配置",
+        "almost_full/almost_empty 状态输出",
+        "单周期 overflow/underrun pulse",
+        "同步 fall-through 可选行为",
+        "满时 push && pop 合法同周期替换",
+        "pop_data 复位为 0",
+        "pop_data 在无合法读取时保持上一次有效输出"
+      ],
+      "constraints": [
+        "DATA_WIDTH 必须大于 0",
+        "DEPTH 必须为 2 的幂",
+        "非法参数通过 elaboration-time assertion 暴露",
+        "非法水线配置通过 assertion 暴露",
+        "合法传输必须保持 FIFO 顺序",
+        "overflow/underrun 不能破坏内部指针、计数或已存数据"
+      ],
+      "verification": [
+        "reset 后为空",
+        "顺序写入读取",
+        "连续写满和连续读空",
+        "满时 push && !pop 产生 overflow",
+        "满时 push && pop 不产生 overflow 且完成替换",
+        "空时 pop 产生 underrun",
+        "FALL_THROUGH 关闭时 empty && push && pop 产生 underrun",
+        "FALL_THROUGH 开启时 empty && push && pop 合法透传",
+        "复位后 pop_data 为 0",
+        "水线合法边界和非法配置 assertion"
+      ]
+    },
+    {
+      "name": "fifo_sync_mem",
+      "status": "planned",
+      "features": [
+        "与 fifo_sync_reg 相同端口和外部语义",
+        "memory array 存储",
+        "同步读写控制",
+        "端口水线配置",
+        "单周期 overflow/underrun pulse",
+        "同步 fall-through 可选行为"
+      ],
+      "constraints": [
+        "外部行为必须对齐 fifo_sync_reg",
+        "memory 读延迟与 fall-through 组合必须明确",
+        "错误请求不能写坏 memory 内容",
+        "DEPTH 必须为 2 的幂"
+      ],
+      "verification": [
+        "复用 fifo_sync_reg 行为测试",
+        "memory 读写同地址场景",
+        "满时替换",
+        "空时透传",
+        "复位后 pop_data 为 0",
+        "无合法读取时保持 pop_data"
+      ]
+    },
+    {
+      "name": "fifo_async_reg",
+      "status": "planned",
+      "features": [
+        "写时钟域 push",
+        "读时钟域 pop",
+        "register array 存储",
+        "独立 wr_rst_n 和 rd_rst_n",
+        "Gray pointer 跨域同步",
+        "wr_full/wr_level/wr_almost_full 写域状态",
+        "rd_empty/rd_level/rd_almost_empty 读域状态",
+        "写域 overflow pulse",
+        "读域 underrun pulse"
+      ],
+      "constraints": [
+        "DEPTH 必须为 2 的幂",
+        "不支持 fall-through",
+        "不提供全局瞬时精确 level",
+        "跨域指针至少两级同步",
+        "写侧水线配置只在写域使用",
+        "读侧水线配置只在读域使用"
+      ],
+      "verification": [
+        "异步不同比例时钟",
+        "独立 reset",
+        "写满和读空",
+        "跨域顺序保持",
+        "写域 overflow pulse",
+        "读域 underrun pulse",
+        "复位后 pop_data 为 0",
+        "wr_level/rd_level 保守状态",
+        "水线配置断言"
+      ]
+    },
+    {
+      "name": "fifo_async_mem",
+      "status": "planned",
+      "features": [
+        "与 fifo_async_reg 相同端口和外部语义",
+        "memory array 存储",
+        "异步跨域读写",
+        "Gray pointer 跨域同步",
+        "写域和读域独立状态观测",
+        "写域 overflow pulse",
+        "读域 underrun pulse",
+        "pop_data 复位为 0"
+      ],
+      "constraints": [
+        "外部行为必须对齐 fifo_async_reg",
+        "memory 读写端口模型必须可综合并可由 Verilator 验证",
+        "不支持异步 fall-through",
+        "错误请求不能破坏已存数据",
+        "DEPTH 必须为 2 的幂"
+      ],
+      "verification": [
+        "复用 fifo_async_reg 行为测试",
+        "memory 后端读写冲突",
+        "跨域读延迟",
+        "复位后 pop_data 为 0",
+        "reset 后输出保持行为"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T001",
+      "title": "确认剩余接口细节",
+      "status": "done",
+      "owner": "fifo-architect",
+      "completed": "2026-06-01",
+      "acceptance": "Q001 已确认：复位后 pop_data 统一复位为 0；设计规格不再包含影响 RTL 的开放接口问题。"
+    },
+    {
+      "id": "T002",
+      "title": "实现 fifo_sync_reg",
+      "status": "ready_for_architect_dispatch",
+      "owner": "fifo-architect",
+      "rtl_owner": "fifo-rtl-designer",
+      "dv_owner": "fifo-dv-verifier",
+      "acceptance": "RTL、最小 Verilator 测试和 JSON 中对应验证项通过。"
+    },
+    {
+      "id": "T003",
+      "title": "实现 fifo_sync_mem",
+      "status": "blocked_by_T002",
+      "acceptance": "外部行为与 fifo_sync_reg 对齐，并通过 memory 后端定向测试。"
+    },
+    {
+      "id": "T004",
+      "title": "实现 fifo_async_reg",
+      "status": "blocked_by_T003",
+      "acceptance": "Gray pointer CDC、独立 reset 和异步 Verilator 测试通过。"
+    },
+    {
+      "id": "T005",
+      "title": "实现 fifo_async_mem",
+      "status": "blocked_by_T004",
+      "acceptance": "外部行为与 fifo_async_reg 对齐，并通过 memory 后端异步测试。"
+    }
+  ]
+}
