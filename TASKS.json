@@ -280,27 +280,93 @@
           "dv/fifo_sync_reg/",
           "scripts/run_fifo_sync_reg.sh"
         ],
-        "notes": "fifo-architect 已确认 fifo_sync_reg 的功能点、设计约束和验证项完整，可进入 RTL 与 DV 分离实现。"
+        "integration_owner": "fifo-architect",
+        "integration_scope": [
+          "TASKS.json",
+          "docs/",
+          "memory/"
+        ],
+        "notes": "fifo-architect 已确认 fifo_sync_reg 的功能点、设计约束和验证项完整，可进入 RTL 与 DV 分离实现。RTL agent 只写 rtl/fifo_sync_reg.sv；DV agent 只写 dv/fifo_sync_reg/ 与 scripts/run_fifo_sync_reg.sh，不修改 RTL。"
       },
-      "acceptance": "RTL、最小 Verilator 测试和 JSON 中对应验证项通过。"
+      "acceptance": "RTL 实现满足 docs/fifo-common-design.md 和 modules.fifo_sync_reg 的功能点/约束；DV 覆盖 modules.fifo_sync_reg 的全部验证项；scripts/run_fifo_sync_reg.sh 可运行并通过；fifo-architect 集成检查确认 RTL/DV 未越界修改且接口、状态语义和错误语义一致。"
     },
     {
       "id": "T003",
       "title": "实现 fifo_sync_mem",
-      "status": "blocked_by_T002",
-      "acceptance": "外部行为与 fifo_sync_reg 对齐，并通过 memory 后端定向测试。"
+      "status": "in_progress",
+      "owner": "fifo-architect",
+      "rtl_owner": "fifo-rtl-designer",
+      "dv_owner": "fifo-dv-verifier",
+      "dispatch": {
+        "date": "2026-06-01",
+        "rtl_scope": [
+          "rtl/fifo_sync_mem.sv"
+        ],
+        "dv_scope": [
+          "dv/fifo_sync_mem/",
+          "scripts/run_fifo_sync_mem.sh"
+        ],
+        "integration_owner": "fifo-architect",
+        "integration_scope": [
+          "TASKS.json",
+          "docs/",
+          "memory/"
+        ],
+        "notes": "fifo_sync_mem 可与 fifo_sync_reg 同轮推进，但外部行为必须对齐 fifo_sync_reg 的已确认接口、fall-through、overflow/underrun、pop_data 保持和水线语义。RTL agent 只写 rtl/fifo_sync_mem.sv；DV agent 只写 dv/fifo_sync_mem/ 与 scripts/run_fifo_sync_mem.sh，不修改 RTL。"
+      },
+      "acceptance": "RTL 实现满足 docs/fifo-common-design.md 和 modules.fifo_sync_mem 的功能点/约束，且端口和外部语义对齐 fifo_sync_reg；DV 复用同步 FIFO 行为检查并覆盖 memory 读写同地址、满时替换、空时透传、复位输出为 0、无合法读取保持 pop_data；scripts/run_fifo_sync_mem.sh 可运行并通过；fifo-architect 集成检查确认 RTL/DV 未越界修改。"
     },
     {
       "id": "T004",
       "title": "实现 fifo_async_reg",
-      "status": "blocked_by_T003",
-      "acceptance": "Gray pointer CDC、独立 reset 和异步 Verilator 测试通过。"
+      "status": "in_progress",
+      "owner": "fifo-architect",
+      "rtl_owner": "fifo-rtl-designer",
+      "dv_owner": "fifo-dv-verifier",
+      "dispatch": {
+        "date": "2026-06-01",
+        "rtl_scope": [
+          "rtl/fifo_async_reg.sv"
+        ],
+        "dv_scope": [
+          "dv/fifo_async_reg/",
+          "scripts/run_fifo_async_reg.sh"
+        ],
+        "integration_owner": "fifo-architect",
+        "integration_scope": [
+          "TASKS.json",
+          "docs/",
+          "memory/"
+        ],
+        "notes": "fifo_async_reg 可与同步模块同轮推进；必须保持已确认异步接口、Gray pointer CDC、独立 reset、保守 wr_level/rd_level、写域 overflow 和读域 underrun 语义。RTL agent 只写 rtl/fifo_async_reg.sv；DV agent 只写 dv/fifo_async_reg/ 与 scripts/run_fifo_async_reg.sh，不修改 RTL。"
+      },
+      "acceptance": "RTL 实现满足 docs/fifo-common-design.md 和 modules.fifo_async_reg 的功能点/约束；DV 覆盖异步不同比例时钟、独立 reset、写满读空、跨域顺序保持、写域 overflow pulse、读域 underrun pulse、pop_data 复位为 0、wr_level/rd_level 保守状态和水线配置断言；scripts/run_fifo_async_reg.sh 可运行并通过；fifo-architect 集成检查确认 CDC 状态语义与任务事实源一致且 RTL/DV 未越界修改。"
     },
     {
       "id": "T005",
       "title": "实现 fifo_async_mem",
-      "status": "blocked_by_T004",
-      "acceptance": "外部行为与 fifo_async_reg 对齐，并通过 memory 后端异步测试。"
+      "status": "in_progress",
+      "owner": "fifo-architect",
+      "rtl_owner": "fifo-rtl-designer",
+      "dv_owner": "fifo-dv-verifier",
+      "dispatch": {
+        "date": "2026-06-01",
+        "rtl_scope": [
+          "rtl/fifo_async_mem.sv"
+        ],
+        "dv_scope": [
+          "dv/fifo_async_mem/",
+          "scripts/run_fifo_async_mem.sh"
+        ],
+        "integration_owner": "fifo-architect",
+        "integration_scope": [
+          "TASKS.json",
+          "docs/",
+          "memory/"
+        ],
+        "notes": "fifo_async_mem 可与 fifo_async_reg 同轮推进，但外部行为必须对齐 fifo_async_reg 的已确认异步接口、CDC 状态、错误 pulse、reset 和 pop_data 保持语义。RTL agent 只写 rtl/fifo_async_mem.sv；DV agent 只写 dv/fifo_async_mem/ 与 scripts/run_fifo_async_mem.sh，不修改 RTL。"
+      },
+      "acceptance": "RTL 实现满足 docs/fifo-common-design.md 和 modules.fifo_async_mem 的功能点/约束，且端口和外部语义对齐 fifo_async_reg；DV 复用异步 FIFO 行为检查并覆盖 memory 后端读写冲突、跨域读延迟、reset 后 pop_data 为 0 和输出保持行为；scripts/run_fifo_async_mem.sh 可运行并通过；fifo-architect 集成检查确认 RTL/DV 未越界修改。"
     }
   ]
 }
