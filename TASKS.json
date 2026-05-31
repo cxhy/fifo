@@ -267,10 +267,21 @@
     {
       "id": "T002",
       "title": "实现 fifo_sync_reg",
-      "status": "ready_for_architect_dispatch",
+      "status": "in_progress",
       "owner": "fifo-architect",
       "rtl_owner": "fifo-rtl-designer",
       "dv_owner": "fifo-dv-verifier",
+      "dispatch": {
+        "date": "2026-06-01",
+        "rtl_scope": [
+          "rtl/fifo_sync_reg.sv"
+        ],
+        "dv_scope": [
+          "dv/fifo_sync_reg/",
+          "scripts/run_fifo_sync_reg.sh"
+        ],
+        "notes": "fifo-architect 已确认 fifo_sync_reg 的功能点、设计约束和验证项完整，可进入 RTL 与 DV 分离实现。"
+      },
       "acceptance": "RTL、最小 Verilator 测试和 JSON 中对应验证项通过。"
     },
     {

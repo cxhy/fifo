@@ -7,6 +7,7 @@
 
 - FIFO 公共组件定位为通用 `push/pop` FIFO/bridge，不绑定 AXI 或其他上层协议。
 - 第一阶段规划 4 类核心：`fifo_sync_reg`、`fifo_sync_mem`、`fifo_async_reg`、`fifo_async_mem`。
+- 当前工作项为 `T002`：实现 `fifo_sync_reg`，RTL 写入范围为 `rtl/fifo_sync_reg.sv`，DV 写入范围为 `dv/fifo_sync_reg/` 和 `scripts/run_fifo_sync_reg.sh`。
 - 第一版只支持 2 次幂深度；非 2 次幂 FIFO 后续单独设计。
 - 任务、模块功能点、设计约束和验证项使用 `TASKS.json` 管控。
 - 已创建三个默认协作角色：`fifo-architect`、`fifo-rtl-designer`、`fifo-dv-verifier`。
@@ -27,7 +28,7 @@
 
 ## 当前阻塞
 
-- 当前无开放接口问题；下一步由 `fifo-architect` 分发 `fifo_sync_reg` 的 RTL 和 DV 任务。
+- 当前无开放接口问题；`fifo-architect` 已分发 `fifo_sync_reg` 的 RTL 和 DV 任务。
 
 ## 关键入口
 
