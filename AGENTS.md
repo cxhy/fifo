@@ -35,12 +35,25 @@
 - `fifo-dv-verifier` 负责验证计划、验证环境、测试用例、scoreboard 和覆盖项；不得修改 RTL 实现来让测试通过。
 - RTL 与 DV 的写入范围必须分离；交叉修改必须先由 `fifo-architect` 明确分发并记录到 `TASKS.json`。
 - 三个角色的可复用 prompt 和协作流程保存在 `agents/` 目录。
+- 涉及架构、接口语义、RTL、DV、`TASKS.json`、验证计划、覆盖准则或跨角色交付的任务时，
+  Codex 应主动启用 FIFO 三 Agent 协作流程；若判断无需启用，应简短说明原因。
+- 用户可用“请启用 FIFO 多 Agent 协作流程”或“按 FIFO 三 Agent 流程推进”提醒 Codex：
+  先由 `fifo-architect` 拆任务并更新 `TASKS.json`，再分派 `fifo-rtl-designer` 和
+  `fifo-dv-verifier` 分别处理 RTL/DV，最后由 `fifo-architect` 集成检查并创建聚焦 commit。
+- 简单问答、只读检查、局部文档润色或不影响架构/RTL/DV/验证语义的微小改动，可以不启用多 Agent；
+  但不得因此绕过任务、验证和提交规则。
 
 ## 工具链
 
 - Python 环境、依赖和脚本执行使用 `uv`。
 - Verilog/SystemVerilog 仿真使用 Verilator。
 - 修改 RTL 或验证代码后，优先运行最窄相关仿真，再扩展到更大测试集合。
+- 用户可提前授权仓库内常用构建和验证命令，例如 `make verilator` 以及带有必要变量的同类命令
+  （如 `make verilator MODEL=... CONFIG=...`），仅限本仓库构建和验证使用。
+- 聊天中的提前授权用于指导 Codex 行为；若工具沙箱仍要求审批，Codex 应发起实际 approval request，
+  并在适合时请求持久授权前缀，例如 `["make", "verilator"]`。
+- 提前授权不覆盖破坏性操作、仓库外写入、全局依赖安装、强推、`git reset --hard` 或删除文件；
+  这些操作必须单独确认。
 
 ## 硬件设计约定
 
