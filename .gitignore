@@ -1,0 +1,7 @@
+build/
+obj_dir/
+*.vcd
+*.fst
+*.log
+.venv/
+
