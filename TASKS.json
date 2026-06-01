@@ -1171,7 +1171,7 @@
         "bash scripts/run_fifo_async_reg.sh: PASS, positive_matrix=12/12, negative_cases=3/3",
         "bash scripts/run_fifo_async_mem.sh: PASS, positive_matrix=12/12, negative_cases=3/3"
       ],
-      "commit": "this focused commit"
+      "commit": "62b6535"
     }
   ],
   "validation": {
@@ -1600,7 +1600,7 @@
           "result": "PASS: positive_matrix=12/12, negative_cases=3/3"
         }
       ],
-      "commit": "this focused commit"
+      "commit": "62b6535"
     }
   ]
 }
