@@ -41,6 +41,14 @@ module fifo_sync_reg #(
     logic                       storage_pop;
     logic                       storage_push;
 
+    function automatic logic [ADDR_WIDTH-1:0] next_ptr(input logic [ADDR_WIDTH-1:0] ptr);
+        if (DEPTH <= 1) begin
+            next_ptr = '0;
+        end else begin
+            next_ptr = ptr + {{(ADDR_WIDTH-1){1'b0}}, 1'b1};
+        end
+    endfunction
+
     initial begin
         if (DATA_WIDTH <= 0) begin
             $fatal(1, "fifo_sync_reg: DATA_WIDTH must be greater than 0");
@@ -93,10 +101,10 @@ module fifo_sync_reg #(
             end
 
             if (storage_push) begin
-                wr_ptr <= wr_ptr + {{(ADDR_WIDTH-1){1'b0}}, 1'b1};
+                wr_ptr <= next_ptr(wr_ptr);
             end
             if (storage_pop) begin
-                rd_ptr <= rd_ptr + {{(ADDR_WIDTH-1){1'b0}}, 1'b1};
+                rd_ptr <= next_ptr(rd_ptr);
             end
 
             unique case ({storage_push, storage_pop})
