@@ -11,6 +11,9 @@
   均已实现 RTL、Verilator DV 和运行脚本。
 - `T006` 已完成：补充 `docs/fifo-design-guide.md` 和 `docs/fifo-verification-plan.md`，
   并保留 `docs/documentation-plan.md` 作为文档化过程记录。
+- `T007` 已完成：把 spec freeze/change-control、feature/verification ID、traceability
+  matrix、失败 triage 和 completion gate 固化到 `AGENTS.md`、`agents/fifo-architect.md`
+  和 `TASKS.json`。
 - `fifo-architect` 负责 `TASKS.json`、`docs/`、`memory/` 的任务状态、约束一致性和集成检查，不写 RTL/DV。
 - `fifo-rtl-designer` 负责 RTL 实现，写入范围限定为：
   - `T002`: `rtl/fifo_sync_reg.sv`
@@ -24,6 +27,9 @@
   - `T005`: `dv/fifo_async_mem/`、`scripts/run_fifo_async_mem.sh`
 - 第一版只支持 2 次幂深度；非 2 次幂 FIFO 后续单独设计。
 - 任务、模块功能点、设计约束和验证项使用 `TASKS.json` 管控。
+- `TASKS.json` schema v2 增加 `spec_items`、`features`、`verification_points`、
+  `traceability`、`iterations` 和 `validation` 字段，用于追踪
+  spec -> feature -> design item -> verification item -> test/case -> result。
 - 已创建三个默认协作角色：`fifo-architect`、`fifo-rtl-designer`、`fifo-dv-verifier`。
 - 每推进一个有意义的节点后，立即在 FIFO 子项目仓库中创建聚焦 commit。
 
@@ -55,6 +61,8 @@
 
 - 当前无开放接口问题或验证阻塞。
 - 第一阶段四个核心 FIFO 已完成；后续可进入 wrapper、参数边界扩展、随机压力测试或非 2 次幂 FIFO 的单独设计。
+- 已记录后续覆盖任务 `T008`：扩展 DATA_WIDTH/DEPTH 参数矩阵、非 2 次幂负向测试、独立水线
+  assertion case 和 coverage 量化。
 
 ## 关键入口
 

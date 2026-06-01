@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "project": "fifo",
   "updated": "2026-06-01",
   "task_policy": {
@@ -128,6 +128,1027 @@
     }
   ],
   "open_questions": [],
+  "workflow_control": {
+    "spec_freeze_rule": "接口、参数、状态语义、错误语义、reset 语义、时序假设和验证准则经用户确认后视为 frozen；后续改变必须走 change-control。",
+    "change_control": {
+      "required_for": [
+        "interface",
+        "architecture",
+        "state_semantics",
+        "error_semantics",
+        "reset_semantics",
+        "timing_assumptions",
+        "verification_criteria",
+        "user_visible_result"
+      ],
+      "records": []
+    },
+    "status_model": [
+      "spec_draft",
+      "spec_confirmed",
+      "plan_ready",
+      "rtl_in_progress",
+      "dv_in_progress",
+      "integration",
+      "debug",
+      "coverage_review",
+      "done",
+      "blocked"
+    ],
+    "failure_triage_classes": [
+      "rtl_bug",
+      "dv_testbench_bug",
+      "spec_unclear",
+      "verification_plan_gap",
+      "tool_or_script_issue"
+    ],
+    "completion_gate": [
+      "validation_passed_or_not_applicable",
+      "all_in_scope_features_covered_or_waived",
+      "TASKS.json_updated",
+      "docs_or_memory_updated_when_needed",
+      "focused_commit_created"
+    ]
+  },
+  "spec_items": [
+    {
+      "id": "S_SCOPE_001",
+      "title": "第一阶段目标",
+      "status": "frozen",
+      "summary": "实现通用 push/pop FIFO 组件族，覆盖同步 FIFO、异步 FIFO，以及 register/memory 两种实现后端。"
+    },
+    {
+      "id": "S_SCOPE_002",
+      "title": "第一阶段非目标",
+      "status": "frozen",
+      "summary": "不绑定 AXI 或其他上层协议；不支持非 2 次幂深度；异步 FIFO 第一阶段不支持 fall-through。"
+    },
+    {
+      "id": "S_IF_001",
+      "title": "公共接口范围",
+      "status": "frozen",
+      "summary": "核心接口采用 push/pop；水线配置通过端口提供；状态和错误信号由模块外部可观测。"
+    },
+    {
+      "id": "S_PARAM_001",
+      "title": "参数约束",
+      "status": "frozen",
+      "summary": "DATA_WIDTH 必须大于 0，DEPTH 必须为 2 的幂；非法参数通过 elaboration-time assertion 暴露。"
+    },
+    {
+      "id": "S_STATE_001",
+      "title": "状态语义",
+      "status": "frozen",
+      "summary": "同步 FIFO 提供 full/empty/level；异步 FIFO 提供各自时钟域的保守 wr_level/rd_level 和水线状态，不承诺全局瞬时精确。"
+    },
+    {
+      "id": "S_ERROR_001",
+      "title": "错误语义",
+      "status": "frozen",
+      "summary": "overflow 和 underrun 是单周期 critical error pulse，非法请求不能破坏 FIFO 指针、计数或已存数据。"
+    },
+    {
+      "id": "S_RESET_001",
+      "title": "Reset 和输出语义",
+      "status": "frozen",
+      "summary": "复位低有效；异步 FIFO 写读域独立 reset；pop_data 复位为 0，无合法读取时保持上一次有效输出。"
+    },
+    {
+      "id": "S_TIMING_001",
+      "title": "时序假设",
+      "status": "frozen",
+      "summary": "同步 FIFO 使用单时钟；异步 FIFO 使用独立写读时钟、Gray pointer 和至少两级跨域同步。"
+    }
+  ],
+  "features": [
+    {
+      "id": "F_COMMON_001",
+      "title": "参数化数据宽度和 2 次幂深度",
+      "priority": "P0",
+      "depends_on": [
+        "S_PARAM_001"
+      ],
+      "modules": [
+        "fifo_sync_reg",
+        "fifo_sync_mem",
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_COMMON_002",
+      "title": "端口化水线配置和 almost 状态",
+      "priority": "P0",
+      "depends_on": [
+        "S_IF_001",
+        "S_STATE_001"
+      ],
+      "modules": [
+        "fifo_sync_reg",
+        "fifo_sync_mem",
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_COMMON_003",
+      "title": "pop_data 复位为 0 且无合法读取时保持",
+      "priority": "P0",
+      "depends_on": [
+        "S_RESET_001"
+      ],
+      "modules": [
+        "fifo_sync_reg",
+        "fifo_sync_mem",
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_COMMON_004",
+      "title": "overflow/underrun 单周期 pulse 且不破坏状态",
+      "priority": "P0",
+      "depends_on": [
+        "S_ERROR_001"
+      ],
+      "modules": [
+        "fifo_sync_reg",
+        "fifo_sync_mem",
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_SYNC_001",
+      "title": "单时钟 push/pop FIFO 外部语义",
+      "priority": "P0",
+      "depends_on": [
+        "S_IF_001",
+        "S_TIMING_001"
+      ],
+      "modules": [
+        "fifo_sync_reg",
+        "fifo_sync_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_SYNC_002",
+      "title": "同步 full/empty/level 状态输出",
+      "priority": "P0",
+      "depends_on": [
+        "S_STATE_001"
+      ],
+      "modules": [
+        "fifo_sync_reg",
+        "fifo_sync_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_SYNC_003",
+      "title": "同步 FIFO 可选 fall-through",
+      "priority": "P0",
+      "depends_on": [
+        "S_SCOPE_002",
+        "S_TIMING_001"
+      ],
+      "modules": [
+        "fifo_sync_reg",
+        "fifo_sync_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_SYNC_004",
+      "title": "同步 FIFO 满时 push && pop 合法替换",
+      "priority": "P0",
+      "depends_on": [
+        "S_ERROR_001"
+      ],
+      "modules": [
+        "fifo_sync_reg",
+        "fifo_sync_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_SYNC_REG_001",
+      "title": "同步 register array 存储后端",
+      "priority": "P0",
+      "depends_on": [
+        "F_SYNC_001"
+      ],
+      "modules": [
+        "fifo_sync_reg"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_SYNC_MEM_001",
+      "title": "同步 memory array 存储后端和同地址读写语义",
+      "priority": "P0",
+      "depends_on": [
+        "F_SYNC_001"
+      ],
+      "modules": [
+        "fifo_sync_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_ASYNC_001",
+      "title": "异步写读时钟域 push/pop 和独立 reset",
+      "priority": "P0",
+      "depends_on": [
+        "S_IF_001",
+        "S_RESET_001",
+        "S_TIMING_001"
+      ],
+      "modules": [
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_ASYNC_002",
+      "title": "Gray pointer 跨域同步",
+      "priority": "P0",
+      "depends_on": [
+        "S_TIMING_001"
+      ],
+      "modules": [
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_ASYNC_003",
+      "title": "写域 wr_full/wr_level/wr_almost_full 状态",
+      "priority": "P0",
+      "depends_on": [
+        "S_STATE_001"
+      ],
+      "modules": [
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_ASYNC_004",
+      "title": "读域 rd_empty/rd_level/rd_almost_empty 状态",
+      "priority": "P0",
+      "depends_on": [
+        "S_STATE_001"
+      ],
+      "modules": [
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_ASYNC_005",
+      "title": "异步 wr_level/rd_level 保守观测语义",
+      "priority": "P0",
+      "depends_on": [
+        "S_STATE_001"
+      ],
+      "modules": [
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_ASYNC_006",
+      "title": "异步 FIFO 第一阶段不支持 fall-through",
+      "priority": "P0",
+      "depends_on": [
+        "S_SCOPE_002"
+      ],
+      "modules": [
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_ASYNC_REG_001",
+      "title": "异步 register array 存储后端",
+      "priority": "P0",
+      "depends_on": [
+        "F_ASYNC_001",
+        "F_ASYNC_002"
+      ],
+      "modules": [
+        "fifo_async_reg"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_ASYNC_MEM_001",
+      "title": "异步 memory array 存储后端和读写冲突语义",
+      "priority": "P0",
+      "depends_on": [
+        "F_ASYNC_001",
+        "F_ASYNC_002"
+      ],
+      "modules": [
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": false,
+      "status": "implemented"
+    },
+    {
+      "id": "F_PROCESS_001",
+      "title": "三 Agent 写入范围隔离和 architect 调度",
+      "priority": "P0",
+      "depends_on": [
+        "D007"
+      ],
+      "modules": [
+        "process"
+      ],
+      "in_current_iteration": true,
+      "status": "implemented"
+    },
+    {
+      "id": "F_PROCESS_002",
+      "title": "spec freeze、change-control 和 open_questions 管控",
+      "priority": "P0",
+      "depends_on": [
+        "D007"
+      ],
+      "modules": [
+        "process"
+      ],
+      "in_current_iteration": true,
+      "status": "implemented"
+    },
+    {
+      "id": "F_PROCESS_003",
+      "title": "feature/verification traceability 和 coverage completion gate",
+      "priority": "P0",
+      "depends_on": [
+        "D007"
+      ],
+      "modules": [
+        "process"
+      ],
+      "in_current_iteration": true,
+      "status": "implemented"
+    }
+  ],
+  "design_items": [
+    {
+      "id": "DI_DOC_SPEC",
+      "title": "FIFO 公共设计规格",
+      "files": [
+        "docs/fifo-common-design.md",
+        "docs/fifo-design-guide.md"
+      ]
+    },
+    {
+      "id": "DI_SYNC_REG_RTL",
+      "title": "fifo_sync_reg RTL",
+      "files": [
+        "rtl/fifo_sync_reg.sv"
+      ]
+    },
+    {
+      "id": "DI_SYNC_MEM_RTL",
+      "title": "fifo_sync_mem RTL",
+      "files": [
+        "rtl/fifo_sync_mem.sv"
+      ]
+    },
+    {
+      "id": "DI_ASYNC_REG_RTL",
+      "title": "fifo_async_reg RTL",
+      "files": [
+        "rtl/fifo_async_reg.sv"
+      ]
+    },
+    {
+      "id": "DI_ASYNC_MEM_RTL",
+      "title": "fifo_async_mem RTL",
+      "files": [
+        "rtl/fifo_async_mem.sv"
+      ]
+    },
+    {
+      "id": "DI_DV_PLAN",
+      "title": "FIFO 验证计划与 Verilator 入口",
+      "files": [
+        "docs/fifo-verification-plan.md",
+        "dv/",
+        "scripts/"
+      ]
+    },
+    {
+      "id": "DI_PROCESS_WORKFLOW",
+      "title": "FIFO 多 Agent 流程控制",
+      "files": [
+        "AGENTS.md",
+        "agents/fifo-architect.md",
+        "TASKS.json"
+      ]
+    }
+  ],
+  "verification_points": [
+    {
+      "id": "V_COMMON_001",
+      "title": "reset 后为空且 pop_data 为 0",
+      "feature_ids": [
+        "F_COMMON_003"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_COMMON_002",
+      "title": "合法 push/pop 保持顺序，不丢失、不重复、不乱序",
+      "feature_ids": [
+        "F_SYNC_001",
+        "F_SYNC_REG_001",
+        "F_SYNC_MEM_001",
+        "F_ASYNC_001",
+        "F_ASYNC_REG_001",
+        "F_ASYNC_MEM_001"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_COMMON_003",
+      "title": "状态输出和端口水线配置",
+      "feature_ids": [
+        "F_COMMON_002",
+        "F_SYNC_002",
+        "F_ASYNC_003",
+        "F_ASYNC_004"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_COMMON_004",
+      "title": "overflow/underrun pulse 且不破坏状态",
+      "feature_ids": [
+        "F_COMMON_004"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_COMMON_005",
+      "title": "参数和非法水线配置 assertion",
+      "feature_ids": [
+        "F_COMMON_001",
+        "F_COMMON_002"
+      ],
+      "priority": "P0",
+      "status": "partial"
+    },
+    {
+      "id": "V_SYNC_001",
+      "title": "同步 fall-through 开关下 empty && push && pop 语义",
+      "feature_ids": [
+        "F_SYNC_003"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_SYNC_002",
+      "title": "同步满时 push && pop 合法替换",
+      "feature_ids": [
+        "F_SYNC_004"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_SYNC_MEM_001",
+      "title": "同步 memory 后端同地址读写和替换压力",
+      "feature_ids": [
+        "F_SYNC_MEM_001"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_ASYNC_001",
+      "title": "异步不同比例时钟和独立 reset",
+      "feature_ids": [
+        "F_ASYNC_001"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_ASYNC_002",
+      "title": "Gray pointer CDC、wraparound 和跨域顺序保持",
+      "feature_ids": [
+        "F_ASYNC_002",
+        "F_ASYNC_005"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_ASYNC_003",
+      "title": "写读域保守 level 和 almost 状态",
+      "feature_ids": [
+        "F_ASYNC_003",
+        "F_ASYNC_004",
+        "F_ASYNC_005"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_ASYNC_004",
+      "title": "写域 overflow 和读域 underrun pulse",
+      "feature_ids": [
+        "F_COMMON_004",
+        "F_ASYNC_001"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_ASYNC_005",
+      "title": "异步 FIFO 不支持 fall-through 的空读行为",
+      "feature_ids": [
+        "F_ASYNC_006"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_ASYNC_MEM_001",
+      "title": "异步 memory 后端读写冲突和读延迟",
+      "feature_ids": [
+        "F_ASYNC_MEM_001"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    },
+    {
+      "id": "V_PROCESS_001",
+      "title": "流程规则、traceability 字段和完成门禁已固化",
+      "feature_ids": [
+        "F_PROCESS_001",
+        "F_PROCESS_002",
+        "F_PROCESS_003"
+      ],
+      "priority": "P0",
+      "status": "covered"
+    }
+  ],
+  "traceability": [
+    {
+      "id": "TR_COMMON_RESET",
+      "spec_ids": [
+        "S_RESET_001"
+      ],
+      "feature_ids": [
+        "F_COMMON_003"
+      ],
+      "design_item_ids": [
+        "DI_SYNC_REG_RTL",
+        "DI_SYNC_MEM_RTL",
+        "DI_ASYNC_REG_RTL",
+        "DI_ASYNC_MEM_RTL"
+      ],
+      "verification_point_ids": [
+        "V_COMMON_001"
+      ],
+      "test_cases": [
+        "dv/fifo_sync_reg/tb_fifo_sync_reg.cpp::reset",
+        "dv/fifo_sync_mem/tb_fifo_sync_mem.cpp::reset",
+        "dv/fifo_async_reg/tb_fifo_async_reg.cpp::reset",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::reset"
+      ],
+      "result": "PASS in make verilator on 2026-06-01"
+    },
+    {
+      "id": "TR_COMMON_ORDERING",
+      "spec_ids": [
+        "S_IF_001",
+        "S_TIMING_001"
+      ],
+      "feature_ids": [
+        "F_SYNC_001",
+        "F_SYNC_REG_001",
+        "F_SYNC_MEM_001",
+        "F_ASYNC_001",
+        "F_ASYNC_REG_001",
+        "F_ASYNC_MEM_001"
+      ],
+      "design_item_ids": [
+        "DI_SYNC_REG_RTL",
+        "DI_SYNC_MEM_RTL",
+        "DI_ASYNC_REG_RTL",
+        "DI_ASYNC_MEM_RTL",
+        "DI_DV_PLAN"
+      ],
+      "verification_point_ids": [
+        "V_COMMON_002"
+      ],
+      "test_cases": [
+        "dv/fifo_sync_reg/tb_fifo_sync_reg.cpp::ordered_push_pop",
+        "dv/fifo_sync_mem/tb_fifo_sync_mem.cpp::ordered_push_pop",
+        "dv/fifo_async_reg/tb_fifo_async_reg.cpp::cross_domain_ordering",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::cross_domain_ordering"
+      ],
+      "result": "PASS in make verilator on 2026-06-01"
+    },
+    {
+      "id": "TR_COMMON_STATUS_WATERLINE",
+      "spec_ids": [
+        "S_IF_001",
+        "S_STATE_001"
+      ],
+      "feature_ids": [
+        "F_COMMON_002",
+        "F_SYNC_002",
+        "F_ASYNC_003",
+        "F_ASYNC_004"
+      ],
+      "design_item_ids": [
+        "DI_SYNC_REG_RTL",
+        "DI_SYNC_MEM_RTL",
+        "DI_ASYNC_REG_RTL",
+        "DI_ASYNC_MEM_RTL"
+      ],
+      "verification_point_ids": [
+        "V_COMMON_003"
+      ],
+      "test_cases": [
+        "dv/*/tb_*::waterline_and_status"
+      ],
+      "result": "PASS in make verilator on 2026-06-01"
+    },
+    {
+      "id": "TR_COMMON_ERRORS",
+      "spec_ids": [
+        "S_ERROR_001"
+      ],
+      "feature_ids": [
+        "F_COMMON_004"
+      ],
+      "design_item_ids": [
+        "DI_SYNC_REG_RTL",
+        "DI_SYNC_MEM_RTL",
+        "DI_ASYNC_REG_RTL",
+        "DI_ASYNC_MEM_RTL"
+      ],
+      "verification_point_ids": [
+        "V_COMMON_004",
+        "V_ASYNC_004"
+      ],
+      "test_cases": [
+        "dv/*/tb_*::overflow",
+        "dv/*/tb_*::underrun"
+      ],
+      "result": "PASS in make verilator on 2026-06-01"
+    },
+    {
+      "id": "TR_COMMON_PARAMETERS",
+      "spec_ids": [
+        "S_PARAM_001"
+      ],
+      "feature_ids": [
+        "F_COMMON_001"
+      ],
+      "design_item_ids": [
+        "DI_SYNC_REG_RTL",
+        "DI_SYNC_MEM_RTL",
+        "DI_ASYNC_REG_RTL",
+        "DI_ASYNC_MEM_RTL"
+      ],
+      "verification_point_ids": [
+        "V_COMMON_005"
+      ],
+      "test_cases": [
+        "dv/*/tb_illegal_config.cpp"
+      ],
+      "result": "PARTIAL: illegal waterline assertions covered; broader DATA_WIDTH/DEPTH and non-power-of-two negative matrix tracked by T008"
+    },
+    {
+      "id": "TR_SYNC_FALLTHROUGH",
+      "spec_ids": [
+        "S_SCOPE_002",
+        "S_TIMING_001"
+      ],
+      "feature_ids": [
+        "F_SYNC_003"
+      ],
+      "design_item_ids": [
+        "DI_SYNC_REG_RTL",
+        "DI_SYNC_MEM_RTL"
+      ],
+      "verification_point_ids": [
+        "V_SYNC_001"
+      ],
+      "test_cases": [
+        "scripts/run_fifo_sync_reg.sh::ft0",
+        "scripts/run_fifo_sync_reg.sh::ft1",
+        "scripts/run_fifo_sync_mem.sh::ft0",
+        "scripts/run_fifo_sync_mem.sh::ft1"
+      ],
+      "result": "PASS in make verilator on 2026-06-01"
+    },
+    {
+      "id": "TR_SYNC_FULL_REPLACE",
+      "spec_ids": [
+        "S_ERROR_001"
+      ],
+      "feature_ids": [
+        "F_SYNC_004"
+      ],
+      "design_item_ids": [
+        "DI_SYNC_REG_RTL",
+        "DI_SYNC_MEM_RTL"
+      ],
+      "verification_point_ids": [
+        "V_SYNC_002"
+      ],
+      "test_cases": [
+        "dv/fifo_sync_reg/tb_fifo_sync_reg.cpp::full_push_pop_replace",
+        "dv/fifo_sync_mem/tb_fifo_sync_mem.cpp::full_push_pop_replace"
+      ],
+      "result": "PASS in make verilator on 2026-06-01"
+    },
+    {
+      "id": "TR_SYNC_MEM_BACKEND",
+      "spec_ids": [
+        "S_IF_001"
+      ],
+      "feature_ids": [
+        "F_SYNC_MEM_001"
+      ],
+      "design_item_ids": [
+        "DI_SYNC_MEM_RTL"
+      ],
+      "verification_point_ids": [
+        "V_SYNC_MEM_001"
+      ],
+      "test_cases": [
+        "dv/fifo_sync_mem/tb_fifo_sync_mem.cpp::same_address"
+      ],
+      "result": "PASS in make verilator on 2026-06-01"
+    },
+    {
+      "id": "TR_ASYNC_CDC",
+      "spec_ids": [
+        "S_STATE_001",
+        "S_TIMING_001"
+      ],
+      "feature_ids": [
+        "F_ASYNC_001",
+        "F_ASYNC_002",
+        "F_ASYNC_003",
+        "F_ASYNC_004",
+        "F_ASYNC_005",
+        "F_ASYNC_REG_001"
+      ],
+      "design_item_ids": [
+        "DI_ASYNC_REG_RTL",
+        "DI_ASYNC_MEM_RTL"
+      ],
+      "verification_point_ids": [
+        "V_ASYNC_001",
+        "V_ASYNC_002",
+        "V_ASYNC_003"
+      ],
+      "test_cases": [
+        "dv/fifo_async_reg/tb_fifo_async_reg.cpp",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp"
+      ],
+      "result": "PASS in make verilator on 2026-06-01"
+    },
+    {
+      "id": "TR_ASYNC_NO_FT",
+      "spec_ids": [
+        "S_SCOPE_002"
+      ],
+      "feature_ids": [
+        "F_ASYNC_006"
+      ],
+      "design_item_ids": [
+        "DI_ASYNC_REG_RTL",
+        "DI_ASYNC_MEM_RTL"
+      ],
+      "verification_point_ids": [
+        "V_ASYNC_005"
+      ],
+      "test_cases": [
+        "dv/fifo_async_reg/tb_fifo_async_reg.cpp::empty_pop",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::empty_pop"
+      ],
+      "result": "PASS in make verilator on 2026-06-01"
+    },
+    {
+      "id": "TR_ASYNC_MEM_BACKEND",
+      "spec_ids": [
+        "S_IF_001",
+        "S_TIMING_001"
+      ],
+      "feature_ids": [
+        "F_ASYNC_MEM_001"
+      ],
+      "design_item_ids": [
+        "DI_ASYNC_MEM_RTL"
+      ],
+      "verification_point_ids": [
+        "V_ASYNC_MEM_001"
+      ],
+      "test_cases": [
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::memory_conflict_and_latency"
+      ],
+      "result": "PASS in make verilator on 2026-06-01"
+    },
+    {
+      "id": "TR_PROCESS_WORKFLOW",
+      "spec_ids": [
+        "S_SCOPE_001"
+      ],
+      "feature_ids": [
+        "F_PROCESS_001",
+        "F_PROCESS_002",
+        "F_PROCESS_003"
+      ],
+      "design_item_ids": [
+        "DI_PROCESS_WORKFLOW"
+      ],
+      "verification_point_ids": [
+        "V_PROCESS_001"
+      ],
+      "test_cases": [
+        "manual review of AGENTS.md",
+        "manual review of agents/fifo-architect.md",
+        "jq empty TASKS.json"
+      ],
+      "result": "PASS: jq empty TASKS.json on 2026-06-01; manual workflow review complete"
+    }
+  ],
+  "iterations": [
+    {
+      "id": "I001",
+      "title": "第一阶段 RTL 与 DV 实现",
+      "task_ids": [
+        "T002",
+        "T003",
+        "T004",
+        "T005"
+      ],
+      "feature_scope": [
+        "F_COMMON_001",
+        "F_COMMON_002",
+        "F_COMMON_003",
+        "F_COMMON_004",
+        "F_SYNC_001",
+        "F_SYNC_002",
+        "F_SYNC_003",
+        "F_SYNC_004",
+        "F_SYNC_REG_001",
+        "F_SYNC_MEM_001",
+        "F_ASYNC_001",
+        "F_ASYNC_002",
+        "F_ASYNC_003",
+        "F_ASYNC_004",
+        "F_ASYNC_005",
+        "F_ASYNC_006",
+        "F_ASYNC_REG_001",
+        "F_ASYNC_MEM_001"
+      ],
+      "verification_scope": [
+        "V_COMMON_001",
+        "V_COMMON_002",
+        "V_COMMON_003",
+        "V_COMMON_004",
+        "V_COMMON_005",
+        "V_SYNC_001",
+        "V_SYNC_002",
+        "V_SYNC_MEM_001",
+        "V_ASYNC_001",
+        "V_ASYNC_002",
+        "V_ASYNC_003",
+        "V_ASYNC_004",
+        "V_ASYNC_005",
+        "V_ASYNC_MEM_001"
+      ],
+      "owner": "fifo-architect",
+      "status": "done",
+      "validation": [
+        "make lint: PASS on 2026-06-01",
+        "make verilator: PASS on 2026-06-01"
+      ]
+    },
+    {
+      "id": "I002",
+      "title": "设计与验证文档补充",
+      "task_ids": [
+        "T006"
+      ],
+      "feature_scope": [],
+      "verification_scope": [],
+      "owner": "fifo-architect",
+      "status": "done",
+      "validation": [
+        "jq empty TASKS.json: PASS",
+        "make lint: PASS",
+        "make verilator: PASS"
+      ]
+    },
+    {
+      "id": "I003",
+      "title": "流程和 traceability 字段硬化",
+      "task_ids": [
+        "T007"
+      ],
+      "feature_scope": [
+        "F_PROCESS_001",
+        "F_PROCESS_002",
+        "F_PROCESS_003"
+      ],
+      "verification_scope": [
+        "V_PROCESS_001"
+      ],
+      "owner": "fifo-architect",
+      "write_scope": [
+        "AGENTS.md",
+        "agents/fifo-architect.md",
+        "TASKS.json",
+        "memory/project-status.md",
+        "memory/decisions.md"
+      ],
+      "status": "done",
+      "acceptance": "AGENTS.md 和 fifo-architect workflow 固化 spec freeze/change-control、traceability、失败 triage 和完成门禁；TASKS.json 支持 spec/features/verification_points/traceability/iterations/validation 字段；JSON 校验通过；创建聚焦 commit。",
+      "validation": [
+        "jq empty TASKS.json: PASS on 2026-06-01"
+      ],
+      "commit": "this focused commit"
+    }
+  ],
+  "validation": {
+    "latest_regression": {
+      "date": "2026-06-01",
+      "commands": [
+        "make lint",
+        "make verilator"
+      ],
+      "result": "PASS",
+      "source": "T006"
+    },
+    "current_iteration": {
+      "id": "I003",
+      "commands": [
+        "jq empty TASKS.json"
+      ],
+      "result": "PASS"
+    },
+    "coverage_review": {
+      "status": "pass_with_known_gaps",
+      "known_gaps": [
+        "参数矩阵仍较窄：当前主要覆盖 DATA_WIDTH=8、DEPTH=4。",
+        "非 2 次幂深度负向 elaboration 测试尚未单独补齐。",
+        "非法 almost-full 和 almost-empty 水线 assertion 尚未拆成独立负向 case。",
+        "当前无 Verilator coverage 或自定义 coverage counter 量化覆盖率。"
+      ],
+      "follow_up_tasks": [
+        "T008"
+      ]
+    }
+  },
   "modules": [
     {
       "name": "fifo_sync_reg",
@@ -412,6 +1433,58 @@
         "make verilator"
       ],
       "acceptance": "设计文档覆盖四个 FIFO 的模块矩阵、接口语义、参数约束、水线配置、错误语义和 CDC 状态语义；验证文档覆盖模块验证矩阵、运行入口、公共/同步/异步检查项、assertion 检查和当前验证结果引用；文档引用 TASKS.json、docs/fifo-common-design.md、memory/project-status.md、memory/decisions.md，不创建新的接口事实源；不修改 RTL、DV、scripts，也不改变已确认接口、状态语义或错误语义。"
+    },
+    {
+      "id": "T007",
+      "title": "固化 FIFO 流程和 traceability 任务模型",
+      "status": "done",
+      "owner": "fifo-architect",
+      "feature_scope": [
+        "F_PROCESS_001",
+        "F_PROCESS_002",
+        "F_PROCESS_003"
+      ],
+      "verification_scope": [
+        "V_PROCESS_001"
+      ],
+      "write_scope": [
+        "AGENTS.md",
+        "agents/fifo-architect.md",
+        "TASKS.json",
+        "memory/project-status.md",
+        "memory/decisions.md"
+      ],
+      "acceptance": "AGENTS.md 和 fifo-architect workflow 写入正式流程；TASKS.json 支持 spec_items、features、verification_points、traceability、iterations 和 validation；open_questions、change-control、失败 triage 和完成门禁有明确字段；jq 校验通过并创建聚焦 commit。",
+      "validation": [
+        {
+          "command": "jq empty TASKS.json",
+          "result": "PASS"
+        }
+      ],
+      "commit": "this focused commit"
+    },
+    {
+      "id": "T008",
+      "title": "扩展参数矩阵和覆盖量化",
+      "status": "spec_draft",
+      "owner": "fifo-architect",
+      "dv_owner": "fifo-dv-verifier",
+      "feature_scope": [
+        "F_COMMON_001",
+        "F_COMMON_002"
+      ],
+      "verification_scope": [
+        "V_COMMON_005"
+      ],
+      "write_scope": [
+        "TASKS.json",
+        "docs/fifo-verification-plan.md",
+        "dv/",
+        "scripts/"
+      ],
+      "acceptance": "补充 DATA_WIDTH/DEPTH 参数矩阵、非 2 次幂深度负向 elaboration 测试、almost-full 与 almost-empty 独立负向 case，并决定是否启用 Verilator coverage 或自定义 coverage counter。",
+      "validation": [],
+      "commit": null
     }
   ]
 }

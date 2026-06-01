@@ -55,3 +55,11 @@
 - 背景和约束: FIFO 子项目会由多个 agent 协作推进，需要可回退、可追溯的细粒度进度记录。
 - 被拒绝的替代方案: 多个设计/实现/验证节点堆积到一次大提交。
 - 影响: 后续每个阶段完成后先验证并提交，再继续推进下一阶段。
+
+## 2026-06-01: Spec Freeze、Traceability 与完成门禁
+
+- 状态: accepted
+- 决策: `TASKS.json` schema v2 必须显式记录 spec items、稳定 feature IDs、verification point IDs、traceability matrix、iteration 记录和 validation 结果。spec 一经确认即视为 freeze；后续接口或语义变更必须进入 change-control。case 失败先由 `fifo-architect` triage，再分派给 RTL 或 DV agent。done 标准必须包含仿真或适用验证、覆盖确认、任务状态更新、必要文档/记忆更新和聚焦 commit。
+- 背景和约束: 仅靠 case pass 容易遗漏功能点覆盖；调试阶段也可能隐式改变接口或语义。流程需要把 spec -> feature -> design item -> verification item -> test/case -> result 串起来。
+- 被拒绝的替代方案: 只保留自然语言 feature/verification 列表；失败后直接让某个 agent 盲改；用仿真通过作为唯一完成标准。
+- 影响: `AGENTS.md`、`agents/fifo-architect.md` 和 `TASKS.json` 均需遵守新流程；后续任务必须记录 feature scope、verification scope、owner、写入范围、状态、验收标准、验证命令、结果和提交。

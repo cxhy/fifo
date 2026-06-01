@@ -20,10 +20,28 @@
 
 - 本子项目使用 `TASKS.json` 管控任务、设计功能点、约束、验证项和确认状态，不使用
   Markdown 任务文件作为事实源。
+- 设计每个模块前，必须先确认范围和设计 spec：目标、非目标、接口、参数、状态语义、
+  错误语义、reset 语义和时序假设。
+- 所有开放问题必须写入 `TASKS.json.open_questions`；影响接口、架构、状态语义、错误语义、
+  reset 语义、验证准则或用户可见结果的问题，必须等待用户确认后才能继续。
+- spec 一经确认即视为 freeze；后续修改接口或语义必须作为 change-control 记录写入
+  `TASKS.json`，说明影响的 spec/feature/verification ID、原因、RTL/DV 影响和确认状态。
+- 每个功能点必须有稳定 ID，例如 `F_SYNC_001`，并记录优先级、依赖、适用模块和是否本轮实现。
+- 每个验证点必须有稳定 ID，例如 `V_SYNC_001`，并映射到一个或多个功能点。
+- `TASKS.json` 必须维护 traceability matrix，覆盖：
+  spec -> feature -> design item -> verification item -> test/case -> result。
 - 设计每个模块前，必须先列出该模块的完整功能点、设计约束和验证项，确保架构、RTL
   设计和验证使用同一套任务与约束描述。
-- 遇到会影响接口、架构、状态语义、错误语义、验证准则或用户可见结果的不确定点时，
-  先主动和用户讨论并等待确认，不自行决策后继续实现。
+- DV 平台和验证计划可以在 RTL 完成前启动，但期望必须来自已确认 spec 和验证计划，
+  不能来自当前 RTL 实现。
+- 复杂设计不得用一个大任务做到底；每轮迭代应在 `TASKS.json` 记录功能点范围、验证点范围、
+  owner、写入范围、状态、验收标准、仿真命令、结果和对应提交。
+- 推荐任务状态包括：`spec_draft`、`spec_confirmed`、`plan_ready`、`rtl_in_progress`、
+  `dv_in_progress`、`integration`、`debug`、`coverage_review`、`done`、`blocked`。
+- case 失败时必须先由 `fifo-architect` 分类为 RTL bug、DV/testbench bug、spec 不清楚、
+  验证计划缺口或工具/脚本问题，再分派给对应 agent；spec 不清楚时停止改实现并请求确认。
+- 完成标准不能只有仿真通过，还必须包含功能点覆盖确认、`TASKS.json` 状态更新、必要文档或
+  memory 更新以及聚焦 commit；未覆盖功能点必须补 case、记录 waiver 或创建后续任务。
 - 每推进一个有意义的设计、RTL、DV 或流程节点后，应立即在本子项目 Git 仓库中创建一个聚焦 commit，
   记录当前状态，便于回退和追溯进度。
 
