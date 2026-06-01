@@ -14,6 +14,9 @@
 - `T007` 已完成：把 spec freeze/change-control、feature/verification ID、traceability
   matrix、失败 triage 和 completion gate 固化到 `AGENTS.md`、`agents/fifo-architect.md`
   和 `TASKS.json`。
+- `T008` 已完成：扩展 `DATA_WIDTH=1/8/17`、`DEPTH=1/2/4/8` 参数矩阵，拆分
+  almost-full / almost-empty / 非 2 次幂深度负向 case，并使用脚本级 coverage summary
+  量化命中。
 - `fifo-architect` 负责 `TASKS.json`、`docs/`、`memory/` 的任务状态、约束一致性和集成检查，不写 RTL/DV。
 - `fifo-rtl-designer` 负责 RTL 实现，写入范围限定为：
   - `T002`: `rtl/fifo_sync_reg.sv`
@@ -42,7 +45,16 @@
   - `bash scripts/run_fifo_sync_mem.sh`
   - `bash scripts/run_fifo_async_reg.sh`
   - `bash scripts/run_fifo_async_mem.sh`
+- T008 参数矩阵结果：
+  - `fifo_sync_reg`: `positive_matrix=24/24`，`negative_cases=3/3`
+  - `fifo_sync_mem`: `positive_matrix=24/24`，`negative_cases=3/3`
+  - `fifo_async_reg`: `positive_matrix=12/12`，`negative_cases=3/3`
+  - `fifo_async_mem`: `positive_matrix=12/12`，`negative_cases=3/3`
 - 集成时修正了 `fifo_async_mem` DV reset reference：read-domain reset 后 `pop_data` 期望回到 `0`。
+- T008 初次矩阵暴露同步 FIFO `DEPTH=1` 满时 `push && pop` 替换路径 RTL bug；已由
+  `7495d57 fix: handle depth-one sync fifo replacement` 修复 `fifo_sync_reg` 和 `fifo_sync_mem`。
+- T008 集成时还修正了异步 reg/mem testbench 中隐含 `DEPTH=4` 的填满流程，使其按参数化
+  `kDepth` 触发 full/overflow 检查。
 
 ## 已确认决策
 
@@ -61,8 +73,8 @@
 
 - 当前无开放接口问题或验证阻塞。
 - 第一阶段四个核心 FIFO 已完成；后续可进入 wrapper、参数边界扩展、随机压力测试或非 2 次幂 FIFO 的单独设计。
-- 已记录后续覆盖任务 `T008`：扩展 DATA_WIDTH/DEPTH 参数矩阵、非 2 次幂负向测试、独立水线
-  assertion case 和 coverage 量化。
+- 剩余覆盖建议：更大参数矩阵、系统化异步时钟比例 sweep、seed 可复现随机压力、Verilator
+  line/toggle/branch coverage 或更细粒度自定义 coverage counter。
 
 ## 关键入口
 

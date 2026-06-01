@@ -7,14 +7,30 @@
 #include <deque>
 #include <string>
 
+namespace {
+
+#ifndef DATA_WIDTH_VALUE
+#define DATA_WIDTH_VALUE 8
+#endif
+
+#ifndef DEPTH_VALUE
+#define DEPTH_VALUE 4
+#endif
+
 #ifndef FALL_THROUGH_VALUE
 #define FALL_THROUGH_VALUE 0
 #endif
 
-namespace {
+constexpr int kDataWidth = DATA_WIDTH_VALUE;
+constexpr int kDepth = DEPTH_VALUE;
+static_assert(kDataWidth > 0 && kDataWidth <= 32, "DATA_WIDTH_VALUE must be 1..32");
+static_assert(kDepth > 0, "DEPTH_VALUE must be greater than 0");
 
-constexpr int kDepth = 4;
-constexpr uint32_t kMask = 0xffu;
+constexpr uint32_t data_mask(int width) {
+    return width >= 32 ? 0xffffffffu : ((uint32_t{1} << width) - 1u);
+}
+
+constexpr uint32_t kMask = data_mask(kDataWidth);
 constexpr bool kFallThrough = FALL_THROUGH_VALUE != 0;
 
 vluint64_t g_time = 0;
@@ -199,6 +215,7 @@ int main(int argc, char **argv) {
     test_memory_same_address_and_replacement(dut, ref);
     test_overflow_underrun_fallthrough_and_hold(dut, ref);
 
-    std::printf("PASS fifo_sync_mem FALL_THROUGH=%d\n", kFallThrough ? 1 : 0);
+    std::printf("PASS fifo_sync_mem DATA_WIDTH=%d DEPTH=%d FALL_THROUGH=%d\n",
+                kDataWidth, kDepth, kFallThrough ? 1 : 0);
     return 0;
 }

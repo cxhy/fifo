@@ -9,8 +9,24 @@
 
 namespace {
 
-constexpr int kDepth = 4;
-constexpr uint32_t kMask = 0xffu;
+#ifndef DATA_WIDTH_VALUE
+#define DATA_WIDTH_VALUE 8
+#endif
+
+#ifndef DEPTH_VALUE
+#define DEPTH_VALUE 4
+#endif
+
+constexpr int kDataWidth = DATA_WIDTH_VALUE;
+constexpr int kDepth = DEPTH_VALUE;
+static_assert(kDataWidth > 0 && kDataWidth <= 32, "DATA_WIDTH_VALUE must be 1..32");
+static_assert(kDepth > 0, "DEPTH_VALUE must be greater than 0");
+
+constexpr uint32_t data_mask(int width) {
+    return width >= 32 ? 0xffffffffu : ((uint32_t{1} << width) - 1u);
+}
+
+constexpr uint32_t kMask = data_mask(kDataWidth);
 vluint64_t g_time = 0;
 
 void fail(const std::string &msg) {
@@ -207,7 +223,7 @@ void test_independent_reset(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
     wait_rd_visible(dut, ref);
     rd_tick(dut, ref, true);
     rd_tick(dut, ref, false);
-    expect_eq("held pop_data after drain", dut.pop_data, 0x31);
+    expect_eq("held pop_data after drain", dut.pop_data, 0x31u & kMask);
 
     dut.rd_rst_n = 0;
     ref.last_pop_data = 0;
@@ -229,11 +245,12 @@ void test_async_order_and_errors(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
     dut.cfg_almost_full_level = 1;
     dut.cfg_almost_empty_level = 0;
 
-    wr_tick(dut, ref, true, 0x10);
-    wr_tick(dut, ref, true, 0x11);
-    rd_tick(dut, ref, false);
-    wr_tick(dut, ref, true, 0x12);
-    wr_tick(dut, ref, true, 0x13);
+    for (int i = 0; i < kDepth; ++i) {
+        wr_tick(dut, ref, true, 0x10u + static_cast<uint32_t>(i));
+        if ((i % 2) == 0) {
+            rd_tick(dut, ref, false);
+        }
+    }
     wait_wr_full(dut, ref);
     wr_tick(dut, ref, true, 0xee);
     wr_tick(dut, ref, false, 0);
@@ -279,6 +296,6 @@ int main(int argc, char **argv) {
     test_async_order_and_errors(dut, ref);
     test_wraparound_cdc_sequence(dut, ref);
 
-    std::printf("PASS fifo_async_reg\n");
+    std::printf("PASS fifo_async_reg DATA_WIDTH=%d DEPTH=%d\n", kDataWidth, kDepth);
     return 0;
 }

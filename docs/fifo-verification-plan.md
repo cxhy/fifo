@@ -3,7 +3,7 @@
 **状态**: implemented
 **日期**: 2026-06-01
 **角色**: fifo-dv-verifier
-**覆盖任务**: T002, T003, T004, T005
+**覆盖任务**: T002, T003, T004, T005, T008
 
 ## 验证目标
 
@@ -33,7 +33,10 @@
 - 每个模块一个主 testbench，位于 `dv/<module>/tb_<module>.cpp`。
 - 每个模块一个非法水线配置负向 testbench，位于 `dv/<module>/tb_illegal_config.cpp`。
 - 主 testbench 内置 reference model 和 scoreboard，直接检查 DUT 端口输出。
-- 仿真参数固定覆盖 `DATA_WIDTH=8`、`DEPTH=4`；同步 FIFO 额外分别编译 `FALL_THROUGH=0` 和 `FALL_THROUGH=1`。
+- T008 后主 testbench 由脚本传入 `DATA_WIDTH_VALUE`、`DEPTH_VALUE` 和同步 FIFO 的
+  `FALL_THROUGH_VALUE`，与 Verilator `-GDATA_WIDTH/-GDEPTH/-GFALL_THROUGH` 保持一致。
+- 默认参数矩阵覆盖 `DATA_WIDTH=1/8/17` 和 `DEPTH=1/2/4/8`；同步 FIFO 额外分别编译
+  `FALL_THROUGH=0/1`。
 - 脚本使用 `verilator --cc --exe --assert -Wall -Wno-fatal --build` 构建并运行。
 - 构建产物写入 `build/<module>/`。
 
@@ -47,7 +50,15 @@
   - `bash scripts/run_fifo_async_reg.sh`
   - `bash scripts/run_fifo_async_mem.sh`
 
-`make verilator` 会顺序调用 4 个单模块脚本。同步 FIFO 脚本运行 `ft0`、`ft1` 和非法水线配置测试；异步 FIFO 脚本运行主测试和非法水线配置测试。
+`make verilator` 会顺序调用 4 个单模块脚本。每个脚本默认运行参数矩阵和独立负向 case，并打印
+`COVERAGE <module> positive_matrix=... negative_cases=...` 作为轻量覆盖摘要。
+
+矩阵可以用环境变量临时收窄：
+
+```text
+FIFO_DATA_WIDTHS="8" FIFO_DEPTHS="1" FIFO_FALL_THROUGHS="0" bash scripts/run_fifo_sync_reg.sh
+FIFO_DATA_WIDTHS="8" FIFO_DEPTHS="1" bash scripts/run_fifo_async_reg.sh
+```
 
 ## Reference Model 与 Scoreboard 策略
 
@@ -79,20 +90,33 @@
 | `fifo_async_reg` | `dv/fifo_async_reg/tb_fifo_async_reg.cpp` | 独立 `wr_rst_n/rd_rst_n`；写到读跨域可见性；写满和 `overflow`；读空和 `underrun`；跨域顺序保持；wraparound/CDC 序列；保守 `wr_level/rd_level`；水线状态 |
 | `fifo_async_mem` | `dv/fifo_async_mem/tb_fifo_async_mem.cpp` | 异步 FIFO 外部语义复用；独立 reset 和输出保持；读延迟；写满读空；overflow/underrun；memory 冲突和 wraparound；跨域顺序保持；保守状态和水线状态 |
 
+## T008 参数矩阵与覆盖摘要
+
+T008 扩展了四个模块的默认脚本矩阵：
+
+| 模块 | DATA_WIDTH | DEPTH | FALL_THROUGH | 正向矩阵 |
+| --- | --- | --- | --- | --- |
+| `fifo_sync_reg` | `1, 8, 17` | `1, 2, 4, 8` | `0, 1` | 24 cases |
+| `fifo_sync_mem` | `1, 8, 17` | `1, 2, 4, 8` | `0, 1` | 24 cases |
+| `fifo_async_reg` | `1, 8, 17` | `1, 2, 4, 8` | 不适用 | 12 cases |
+| `fifo_async_mem` | `1, 8, 17` | `1, 2, 4, 8` | 不适用 | 12 cases |
+
+本轮不启用 Verilator coverage 数据库；选择脚本级自定义 coverage summary 量化参数矩阵和负向
+case 命中。后续如需要 line/toggle/branch 级覆盖率，可另建任务引入 Verilator coverage。
+
 ## 非法配置 Assertion 测试
 
-每个模块都有 `tb_illegal_config.cpp` 负向测试。测试流程为：
+每个模块都有 `tb_illegal_config.cpp` 负向测试。T008 后负向测试拆成三个独立 case：
 
-1. 先在合法水线配置下完成 reset。
-2. 将 `cfg_almost_full_level` 设为 `0`，期望触发 assertion。
-3. 若进程没有失败，脚本报告错误并返回失败。
-4. 脚本在观察到 Verilator assertion 失败后打印 `PASS <module> illegal waterline assertion`。
+- `illegal_almost_full`: 将 `cfg_almost_full_level` 设为 `0`，期望触发 assertion。
+- `illegal_almost_empty`: 将 `cfg_almost_empty_level` 设为 `DEPTH`，期望触发 assertion。
+- `non_power_of_two_depth`: 使用 `DEPTH=3`，期望参数 assertion 在 elaboration 或 runtime 暴露。
 
-同步模块的负向测试还包含将 `cfg_almost_empty_level` 设为 `DEPTH` 的非法配置路径；实际运行通常先被 `cfg_almost_full_level=0` 的 assertion 截获。
+脚本在观察到预期失败后将其计为 coverage 命中；如果负向 case 正常退出，则脚本失败。
 
 ## 当前运行结果
 
-2026-06-01 在当前工作区运行：
+2026-06-01 第一阶段实现后运行：
 
 ```text
 make lint      PASS
@@ -108,13 +132,28 @@ make verilator PASS
 
 非法配置测试中 Verilator 打印 `%Fatal` 和进程 `Aborted` 是预期行为；脚本将其解释为 assertion 成功触发。
 
+2026-06-01 推进 T008 时运行：
+
+```text
+make lint                    PASS
+bash scripts/run_fifo_sync_reg.sh   PASS, positive_matrix=24/24, negative_cases=3/3
+bash scripts/run_fifo_sync_mem.sh   PASS, positive_matrix=24/24, negative_cases=3/3
+bash scripts/run_fifo_async_reg.sh  PASS, positive_matrix=12/12, negative_cases=3/3
+bash scripts/run_fifo_async_mem.sh  PASS, positive_matrix=12/12, negative_cases=3/3
+```
+
+T008 初次运行发现 `DEPTH=1` 同步 FIFO 满时 `push && pop` 替换路径的 RTL bug；architect
+triage 分类为 RTL bug，已由 RTL agent 修复 `fifo_sync_reg` 和 `fifo_sync_mem` 的
+`DEPTH=1` 指针回绕行为，并通过上述矩阵回归。
+
 ## 当前覆盖缺口与后续建议
 
-- 参数矩阵较窄：当前只覆盖 `DATA_WIDTH=8`、`DEPTH=4`。建议增加 `DEPTH=1/2/8/16`、不同 `DATA_WIDTH` 和更宽 level 编码组合。
-- 非 2 次幂深度尚未验证为非法参数路径；当前第一阶段不支持非 2 次幂，建议补充 elaboration-time 参数 assertion 的负向脚本。
+- 参数矩阵已扩展到 `DATA_WIDTH=1/8/17`、`DEPTH=1/2/4/8`。后续可继续增加更大深度、
+  更宽数据宽度和更多 level 编码组合。
+- 非 2 次幂深度已有 `DEPTH=3` 负向路径覆盖。后续可扩展更多非法参数组合，例如
+  `DATA_WIDTH=0` 或 `DEPTH=0` 的工具兼容性检查。
 - 异步时钟比例仍是手写 tick 交错序列，不是系统化 sweep。建议增加多组写快读慢、读快写慢、相近频率和相位漂移场景。
-- 当前无覆盖率收集。建议后续打开 Verilator coverage 或补充自定义 coverage counter，量化 full/empty/wrap/error/reset/waterline 命中。
+- 当前已有脚本级 coverage summary，但尚无 Verilator line/toggle/branch 覆盖率收集。建议后续打开 Verilator coverage 或补充更细粒度自定义 coverage counter，量化 full/empty/wrap/error/reset/waterline 命中。
 - 当前随机压力较少。建议在现有定向测试通过后加入 seed 可复现随机序列，并保留 scoreboard 独立期望。
 - CDC 结构本身未做静态 CDC 检查；当前只从端口行为和跨域保守状态验证，建议后续配合 lint/CDC 工具或结构性检查。
-- 非法水线负向测试会在第一个非法配置 assertion 后退出，尚未分别证明 almost-full 和 almost-empty 两类非法配置都能独立触发。建议拆分为两个独立负向 case。
 - 尚未验证 reset 与有效交易同周期释放/拉低的更多边界组合。建议补充 reset 交错、局部 reset 后残留数据处理和 reset 后重新填充的定向用例。

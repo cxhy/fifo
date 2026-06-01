@@ -633,7 +633,7 @@
         "F_COMMON_002"
       ],
       "priority": "P0",
-      "status": "partial"
+      "status": "covered"
     },
     {
       "id": "V_SYNC_001",
@@ -858,9 +858,13 @@
         "V_COMMON_005"
       ],
       "test_cases": [
-        "dv/*/tb_illegal_config.cpp"
+        "dv/*/tb_illegal_config.cpp",
+        "scripts/run_fifo_sync_reg.sh::DATA_WIDTH=1/8/17,DEPTH=1/2/4/8,FALL_THROUGH=0/1",
+        "scripts/run_fifo_sync_mem.sh::DATA_WIDTH=1/8/17,DEPTH=1/2/4/8,FALL_THROUGH=0/1",
+        "scripts/run_fifo_async_reg.sh::DATA_WIDTH=1/8/17,DEPTH=1/2/4/8",
+        "scripts/run_fifo_async_mem.sh::DATA_WIDTH=1/8/17,DEPTH=1/2/4/8"
       ],
-      "result": "PARTIAL: illegal waterline assertions covered; broader DATA_WIDTH/DEPTH and non-power-of-two negative matrix tracked by T008"
+      "result": "PASS in T008 on 2026-06-01: sync modules positive_matrix=24/24 and async modules positive_matrix=12/12; all modules negative_cases=3/3 including illegal almost-full, illegal almost-empty, and non-power-of-two DEPTH"
     },
     {
       "id": "TR_SYNC_FALLTHROUGH",
@@ -1117,6 +1121,57 @@
         "jq empty TASKS.json: PASS on 2026-06-01"
       ],
       "commit": "this focused commit"
+    },
+    {
+      "id": "I004",
+      "title": "T008 参数矩阵和覆盖量化",
+      "task_ids": [
+        "T008"
+      ],
+      "feature_scope": [
+        "F_COMMON_001",
+        "F_COMMON_002"
+      ],
+      "verification_scope": [
+        "V_COMMON_005"
+      ],
+      "owner": "fifo-architect",
+      "dv_owner": "fifo-dv-verifier",
+      "rtl_owner": "fifo-rtl-designer",
+      "write_scope": [
+        "rtl/fifo_sync_reg.sv",
+        "rtl/fifo_sync_mem.sv",
+        "dv/",
+        "scripts/",
+        "docs/fifo-verification-plan.md",
+        "TASKS.json",
+        "memory/project-status.md"
+      ],
+      "status": "done",
+      "acceptance": "DATA_WIDTH/DEPTH 参数矩阵通过；非 2 次幂深度负向 elaboration/runtime assertion 覆盖；almost-full 与 almost-empty 独立负向 case 覆盖；采用脚本级 coverage summary 量化命中。",
+      "triage": [
+        {
+          "failure": "T008 初次默认矩阵在 fifo_sync_reg DEPTH=1 满时 push && pop 替换路径失败",
+          "class": "rtl_bug",
+          "owner": "fifo-rtl-designer",
+          "resolution": "修复 fifo_sync_reg/fifo_sync_mem DEPTH<=1 指针 next_ptr 行为",
+          "commit": "7495d57"
+        },
+        {
+          "failure": "fifo_async_reg DATA_WIDTH=1 DEPTH=8 等待 wr_full 失败",
+          "class": "dv_testbench_bug",
+          "owner": "fifo-dv-verifier",
+          "resolution": "异步 reg/mem testbench 按参数化 kDepth 填满 FIFO，而不是隐含 DEPTH=4"
+        }
+      ],
+      "validation": [
+        "make lint: PASS on 2026-06-01",
+        "bash scripts/run_fifo_sync_reg.sh: PASS, positive_matrix=24/24, negative_cases=3/3",
+        "bash scripts/run_fifo_sync_mem.sh: PASS, positive_matrix=24/24, negative_cases=3/3",
+        "bash scripts/run_fifo_async_reg.sh: PASS, positive_matrix=12/12, negative_cases=3/3",
+        "bash scripts/run_fifo_async_mem.sh: PASS, positive_matrix=12/12, negative_cases=3/3"
+      ],
+      "commit": "this focused commit"
     }
   ],
   "validation": {
@@ -1124,29 +1179,34 @@
       "date": "2026-06-01",
       "commands": [
         "make lint",
-        "make verilator"
+        "bash scripts/run_fifo_sync_reg.sh",
+        "bash scripts/run_fifo_sync_mem.sh",
+        "bash scripts/run_fifo_async_reg.sh",
+        "bash scripts/run_fifo_async_mem.sh"
       ],
       "result": "PASS",
-      "source": "T006"
+      "source": "T008"
     },
     "current_iteration": {
-      "id": "I003",
+      "id": "I004",
       "commands": [
-        "jq empty TASKS.json"
+        "make lint",
+        "bash scripts/run_fifo_sync_reg.sh",
+        "bash scripts/run_fifo_sync_mem.sh",
+        "bash scripts/run_fifo_async_reg.sh",
+        "bash scripts/run_fifo_async_mem.sh"
       ],
       "result": "PASS"
     },
     "coverage_review": {
       "status": "pass_with_known_gaps",
       "known_gaps": [
-        "参数矩阵仍较窄：当前主要覆盖 DATA_WIDTH=8、DEPTH=4。",
-        "非 2 次幂深度负向 elaboration 测试尚未单独补齐。",
-        "非法 almost-full 和 almost-empty 水线 assertion 尚未拆成独立负向 case。",
-        "当前无 Verilator coverage 或自定义 coverage counter 量化覆盖率。"
+        "参数矩阵已覆盖 DATA_WIDTH=1/8/17 和 DEPTH=1/2/4/8，但尚未扩展到更大深度或更宽数据宽度。",
+        "当前采用脚本级 coverage summary，尚无 Verilator line/toggle/branch 覆盖率。",
+        "异步时钟比例仍是手写 tick 交错序列，尚未系统化 sweep。",
+        "当前随机压力较少，尚未加入 seed 可复现随机序列。"
       ],
-      "follow_up_tasks": [
-        "T008"
-      ]
+      "follow_up_tasks": []
     }
   },
   "modules": [
@@ -1466,9 +1526,10 @@
     {
       "id": "T008",
       "title": "扩展参数矩阵和覆盖量化",
-      "status": "dv_in_progress",
+      "status": "done",
       "owner": "fifo-architect",
       "dv_owner": "fifo-dv-verifier",
+      "rtl_owner": "fifo-rtl-designer",
       "dispatch": {
         "date": "2026-06-01",
         "architect_review": "T008 不改变接口、状态语义、错误语义或 reset 语义；无需要用户确认的开放问题。",
@@ -1503,8 +1564,43 @@
         "scripts/"
       ],
       "acceptance": "补充 DATA_WIDTH/DEPTH 参数矩阵、非 2 次幂深度负向 elaboration 测试、almost-full 与 almost-empty 独立负向 case，并决定是否启用 Verilator coverage 或自定义 coverage counter。",
-      "validation": [],
-      "commit": null
+      "triage": [
+        {
+          "failure": "默认矩阵暴露 fifo_sync_reg/fifo_sync_mem DEPTH=1 满时 push && pop 替换后读出错误",
+          "class": "rtl_bug",
+          "owner": "fifo-rtl-designer",
+          "resolution": "提交 7495d57 修复同步 FIFO DEPTH<=1 指针 next_ptr 行为"
+        },
+        {
+          "failure": "fifo_async_reg DATA_WIDTH=1 DEPTH=8 只写入 4 项却等待 wr_full",
+          "class": "dv_testbench_bug",
+          "owner": "fifo-dv-verifier",
+          "resolution": "异步 reg/mem testbench 使用参数化 kDepth 填满 FIFO"
+        }
+      ],
+      "validation": [
+        {
+          "command": "make lint",
+          "result": "PASS"
+        },
+        {
+          "command": "bash scripts/run_fifo_sync_reg.sh",
+          "result": "PASS: positive_matrix=24/24, negative_cases=3/3"
+        },
+        {
+          "command": "bash scripts/run_fifo_sync_mem.sh",
+          "result": "PASS: positive_matrix=24/24, negative_cases=3/3"
+        },
+        {
+          "command": "bash scripts/run_fifo_async_reg.sh",
+          "result": "PASS: positive_matrix=12/12, negative_cases=3/3"
+        },
+        {
+          "command": "bash scripts/run_fifo_async_mem.sh",
+          "result": "PASS: positive_matrix=12/12, negative_cases=3/3"
+        }
+      ],
+      "commit": "this focused commit"
     }
   ]
 }

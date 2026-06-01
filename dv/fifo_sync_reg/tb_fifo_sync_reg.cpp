@@ -7,14 +7,30 @@
 #include <deque>
 #include <string>
 
+namespace {
+
+#ifndef DATA_WIDTH_VALUE
+#define DATA_WIDTH_VALUE 8
+#endif
+
+#ifndef DEPTH_VALUE
+#define DEPTH_VALUE 4
+#endif
+
 #ifndef FALL_THROUGH_VALUE
 #define FALL_THROUGH_VALUE 0
 #endif
 
-namespace {
+constexpr int kDataWidth = DATA_WIDTH_VALUE;
+constexpr int kDepth = DEPTH_VALUE;
+static_assert(kDataWidth > 0 && kDataWidth <= 32, "DATA_WIDTH_VALUE must be 1..32");
+static_assert(kDepth > 0, "DEPTH_VALUE must be greater than 0");
 
-constexpr int kDepth = 4;
-constexpr uint32_t kMask = 0xffu;
+constexpr uint32_t data_mask(int width) {
+    return width >= 32 ? 0xffffffffu : ((uint32_t{1} << width) - 1u);
+}
+
+constexpr uint32_t kMask = data_mask(kDataWidth);
 constexpr bool kFallThrough = FALL_THROUGH_VALUE != 0;
 
 vluint64_t g_time = 0;
@@ -145,12 +161,13 @@ void tick(Vfifo_sync_reg &dut, SyncScoreboard &ref, bool push, uint32_t data, bo
 void test_order_and_reset(Vfifo_sync_reg &dut, SyncScoreboard &ref) {
     drive_reset(dut, ref);
     tick(dut, ref, false, 0, false, 1, 0);
-    tick(dut, ref, true, 0x11, false, 1, 0);
-    tick(dut, ref, true, 0x22, false, 1, 0);
-    tick(dut, ref, true, 0x33, false, 1, 0);
-    tick(dut, ref, false, 0, true, 1, 0);
-    tick(dut, ref, false, 0, true, 1, 0);
-    tick(dut, ref, false, 0, true, 1, 0);
+    const int entries = kDepth < 3 ? kDepth : 3;
+    for (int i = 0; i < entries; ++i) {
+        tick(dut, ref, true, 0x11u + static_cast<uint32_t>(i * 0x11), false, 1, 0);
+    }
+    for (int i = 0; i < entries; ++i) {
+        tick(dut, ref, false, 0, true, 1, 0);
+    }
     tick(dut, ref, false, 0, false, 1, 0);
 }
 
@@ -201,6 +218,7 @@ int main(int argc, char **argv) {
     test_full_replacement(dut, ref);
     test_fall_through_case(dut, ref);
 
-    std::printf("PASS fifo_sync_reg FALL_THROUGH=%d\n", kFallThrough ? 1 : 0);
+    std::printf("PASS fifo_sync_reg DATA_WIDTH=%d DEPTH=%d FALL_THROUGH=%d\n",
+                kDataWidth, kDepth, kFallThrough ? 1 : 0);
     return 0;
 }
