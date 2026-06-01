@@ -9,6 +9,8 @@
 - 第一阶段规划 4 类核心：`fifo_sync_reg`、`fifo_sync_mem`、`fifo_async_reg`、`fifo_async_mem`。
 - `T002`-`T005` 已完成：`fifo_sync_reg`、`fifo_sync_mem`、`fifo_async_reg`、`fifo_async_mem`
   均已实现 RTL、Verilator DV 和运行脚本。
+- `T006` 已完成：补充 `docs/fifo-design-guide.md` 和 `docs/fifo-verification-plan.md`，
+  并保留 `docs/documentation-plan.md` 作为文档化过程记录。
 - `fifo-architect` 负责 `TASKS.json`、`docs/`、`memory/` 的任务状态、约束一致性和集成检查，不写 RTL/DV。
 - `fifo-rtl-designer` 负责 RTL 实现，写入范围限定为：
   - `T002`: `rtl/fifo_sync_reg.sv`
@@ -57,6 +59,9 @@
 ## 关键入口
 
 - [FIFO 公共组件设计规格](../docs/fifo-common-design.md)
+- [FIFO 设计文档](../docs/fifo-design-guide.md)
+- [FIFO 验证计划](../docs/fifo-verification-plan.md)
+- [文档补充过程记录](../docs/documentation-plan.md)
 - [JSON 任务事实源](../TASKS.json)
 - [Agent 角色定义](../agents/)
 - [设计决策索引](decisions.md)

@@ -15,6 +15,9 @@
 ## 设计入口
 
 - [docs/fifo-common-design.md](docs/fifo-common-design.md): FIFO 公共组件第一版设计规格。
+- [docs/fifo-design-guide.md](docs/fifo-design-guide.md): 第一阶段四个 FIFO 的设计文档。
+- [docs/fifo-verification-plan.md](docs/fifo-verification-plan.md): Verilator 验证计划、覆盖矩阵和结果。
+- [docs/documentation-plan.md](docs/documentation-plan.md): 设计文档和验证文档补充过程记录。
 - [TASKS.json](TASKS.json): FIFO 子项目任务、模块功能点、设计约束和验证项事实源。
 - [agents/](agents/): 架构规划、RTL 设计和 DV 验证三个 agent 的职责与 prompt。
 

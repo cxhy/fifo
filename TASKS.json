@@ -391,6 +391,27 @@
         "bash scripts/run_fifo_async_mem.sh"
       ],
       "acceptance": "RTL 实现满足 docs/fifo-common-design.md 和 modules.fifo_async_mem 的功能点/约束，且端口和外部语义对齐 fifo_async_reg；DV 复用异步 FIFO 行为检查并覆盖 memory 后端读写冲突、跨域读延迟、reset 后 pop_data 为 0 和输出保持行为；scripts/run_fifo_async_mem.sh 可运行并通过；fifo-architect 集成检查确认 RTL/DV 未越界修改。"
+    },
+    {
+      "id": "T006",
+      "title": "补充设计文档和验证文档",
+      "status": "done",
+      "owner": "fifo-architect",
+      "scope": [
+        "docs/documentation-plan.md",
+        "docs/fifo-common-design.md",
+        "docs/fifo-design-guide.md",
+        "docs/fifo-verification-plan.md",
+        "README.md",
+        "memory/project-status.md"
+      ],
+      "completed": "2026-06-01",
+      "validation": [
+        "jq empty TASKS.json",
+        "make lint",
+        "make verilator"
+      ],
+      "acceptance": "设计文档覆盖四个 FIFO 的模块矩阵、接口语义、参数约束、水线配置、错误语义和 CDC 状态语义；验证文档覆盖模块验证矩阵、运行入口、公共/同步/异步检查项、assertion 检查和当前验证结果引用；文档引用 TASKS.json、docs/fifo-common-design.md、memory/project-status.md、memory/decisions.md，不创建新的接口事实源；不修改 RTL、DV、scripts，也不改变已确认接口、状态语义或错误语义。"
     }
   ]
 }

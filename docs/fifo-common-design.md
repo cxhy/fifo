@@ -3,6 +3,13 @@
 **状态**: draft
 **日期**: 2026-06-01
 
+## 文档索引
+
+- `docs/fifo-design-guide.md`: 已实现 RTL 的设计说明。
+- `docs/fifo-verification-plan.md`: Verilator 验证计划、覆盖矩阵和当前结果。
+- `TASKS.json`: 模块功能点、设计约束、验证项和任务状态事实源。
+- `memory/decisions.md`: 长期设计决策记录。
+
 ## 目标
 
 本仓库交付通用 FIFO/bridge 公共组件，不绑定 AXI、NoC 或其他上层协议。
@@ -136,6 +143,54 @@ module fifo_async_reg #(
 - `rd_level`: 读时钟域基于同步后的写指针和本地读指针计算。它可能比真实可读量偏小，适合生成 `rd_empty/rd_almost_empty`。
 
 跨域指针同步使用 Gray pointer 和至少两级同步器。第一阶段要求 `DEPTH` 为 2 的幂，以保持指针环和 full/empty 判断简单可靠。
+
+## RTL 实现复核说明
+
+本节记录当前 `rtl/` 中 4 个核心模块的实现侧结构和边界行为，作为设计文档与 RTL 对齐依据。
+
+### 模块接口概览
+
+- `fifo_sync_reg` 和 `fifo_sync_mem` 共享同步 FIFO 接口：单一 `clk/rst_n`；`push/push_data` 写入；`pop/pop_data` 读取；`cfg_almost_full_level/cfg_almost_empty_level` 运行时水线配置；输出 `full/empty/almost_full/almost_empty/level/overflow/underrun`。
+- `fifo_async_reg` 和 `fifo_async_mem` 共享异步 FIFO 接口：写域使用 `wr_clk/wr_rst_n`、`push/push_data`、`cfg_almost_full_level`、`wr_full/wr_almost_full/wr_level/overflow`；读域使用 `rd_clk/rd_rst_n`、`pop/pop_data`、`cfg_almost_empty_level`、`rd_empty/rd_almost_empty/rd_level/underrun`。
+- 同步 FIFO 有 `FALL_THROUGH` parameter；异步 FIFO 没有 `FALL_THROUGH` parameter，第一阶段固定不支持跨域透传。
+- `reg` 与 `mem` 后端在当前 RTL 中都使用可综合 SystemVerilog array 保存数据。`mem` 版本对外端口和状态语义必须与同类 `reg` 版本一致，不绑定具体 SRAM macro。
+
+### 同步实现结构
+
+- 同步 FIFO 使用 `wr_ptr`、`rd_ptr` 和 `level` 作为核心状态；`wr_ptr/rd_ptr` 地址宽度为 `max(1, clog2(DEPTH))`，`level` 宽度为 `clog2(DEPTH+1)`。
+- `full` 由 `level == DEPTH` 得到，`empty` 由 `level == 0` 得到；`almost_full/almost_empty` 直接基于当前 `level` 和水线输入组合生成。
+- 合法存储读取条件为 `pop && !empty`。没有合法读取时，`pop_data` 不被覆盖，保持最近一次有效输出。
+- 合法存储写入条件为 `push && (!full || storage_pop) && !fall_through_read`。因此满状态下同周期 `push && pop` 可以读出旧队首并写入新队尾，`level` 保持不变，不触发 `overflow`。
+- `fall_through_read` 仅在 `FALL_THROUGH && empty && push && pop` 时成立。该场景下 `pop_data` 在时钟沿更新为 `push_data`，数据不写入 array，`level` 保持 `0`。
+- `fifo_sync_reg` 与 `fifo_sync_mem` 的同步读写控制相同：读取输出在合法 `pop` 的时钟沿更新，写入在合法 `push` 的时钟沿更新。当前规格不承诺组合读或零周期 SRAM macro 行为。
+
+### 异步 Gray Pointer/CDC/Level 语义
+
+- 异步 FIFO 使用扩展二进制指针 `wr_bin/rd_bin` 和对应 Gray 指针 `wr_gray/rd_gray`。`DEPTH > 1` 时指针宽度为 `clog2(DEPTH)+1`，额外一位用于区分环绕；`DEPTH == 1` 时地址固定为 `0`。
+- 写指针 Gray 值通过 `wr_gray_rd_sync1/wr_gray_rd_sync2` 两级同步进入读域；读指针 Gray 值通过 `rd_gray_wr_sync1/rd_gray_wr_sync2` 两级同步进入写域。各域将同步后的 Gray pointer 转回 binary 后计算本地域 level。
+- 写域 `wr_level = wr_bin - rd_bin_wr_sync`，读域 `rd_level = wr_bin_rd_sync - rd_bin`。两个 level 都只表示本地域根据同步后远端指针得到的观测值，不代表跨域瞬时精确占用。
+- 写域 `wr_full` 由 `wr_level == DEPTH` 生成；读域 `rd_empty` 由 `rd_level == 0` 生成。由于远端指针经过同步链，`wr_full` 可能保守保持一段时间，`rd_empty` 也可能保守保持一段时间。
+- 每个时钟域复位释放后先进入一次 alignment 状态：本地域指针对齐到已采样的远端 Gray pointer，期间写域 suppress `overflow`，读域 suppress `underrun`，`wr_level/rd_level` 输出为 `0`，读域 `rd_empty` 保持为 `1`。
+- 异步 `push` 仅在写域 `!wr_full` 且不处于 alignment 时写 array 并推进写指针；异步 `pop` 仅在读域 `!rd_empty` 且不处于 alignment 时读取 array、更新 `pop_data` 并推进读指针。
+
+### Reset/错误/水线/Fall-Through 行为
+
+- 同步 FIFO 使用低有效 `rst_n`；异步 FIFO 使用低有效且互相独立的 `wr_rst_n` 和 `rd_rst_n`。
+- 复位后本地域指针和 level 归零；`pop_data` 在同步 FIFO 和异步读域复位后均为 `0`；`overflow/underrun` 复位为 `0`。
+- `overflow` 和 `underrun` 是寄存的单周期 pulse。同步 FIFO 中 `overflow = push && full && !pop`，`underrun = pop && empty && !(FALL_THROUGH && push)`；异步 FIFO 中 `overflow = push && wr_full`，`underrun = pop && rd_empty`。
+- 错误请求不会推进对应指针，也不会写坏已存数据。满时同步 `push && !pop` 不写 array；空时非法 `pop` 不更新 `pop_data`。
+- 水线输入是端口级配置，RTL 在对应时钟沿检查合法范围。`cfg_almost_full_level` 合法范围为 `1..DEPTH`，`cfg_almost_empty_level` 合法范围为 `0..DEPTH-1`；非法配置通过 assertion/fatal 暴露。
+- `almost_full` 和 `almost_empty` 是基于本地域当前观测 level 的组合输出，不额外寄存。异步版本中它们继承 `wr_level/rd_level` 的保守观测属性。
+- `fall-through` 仅适用于同步 FIFO。异步 FIFO 中读域只根据 `rd_empty` 判断读取合法性，`pop && rd_empty` 始终是 `underrun`，即使写域同一真实时间发生 `push`。
+
+### 已知限制
+
+- 第一阶段只支持 `DEPTH > 0` 且为 2 的幂；非 2 次幂深度需要单独设计指针和 full/empty 判定。
+- 当前模块不提供 ready/valid 协议封装，不提供 AXI/AXI-Stream/NoC 等上层协议转换。
+- 异步 FIFO 不提供全局精确占用计数，也不承诺跨域同一时刻的 `wr_level` 与 `rd_level` 一致。
+- 异步 array 存储未抽象为特定双口 SRAM macro 接口；后续若绑定 macro，需要重新审查读写冲突、读延迟和 CDC 约束。
+- 当前错误输出为 pulse，不提供 sticky error latch、错误计数或清除寄存器。
+- 当前水线配置由调用方保证在目标时钟域稳定；RTL 不对配置端口做跨域同步或去抖。
 
 ## 实现计划
 
