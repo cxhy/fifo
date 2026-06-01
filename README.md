@@ -17,3 +17,8 @@
 - [docs/fifo-common-design.md](docs/fifo-common-design.md): FIFO 公共组件第一版设计规格。
 - [TASKS.json](TASKS.json): FIFO 子项目任务、模块功能点、设计约束和验证项事实源。
 - [agents/](agents/): 架构规划、RTL 设计和 DV 验证三个 agent 的职责与 prompt。
+
+## 验证入口
+
+- `make lint`: 对四个 FIFO RTL 分别运行 Verilator lint。
+- `make verilator`: 运行四个 FIFO 的 Verilator 定向测试和非法水线 assertion 测试。
