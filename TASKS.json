@@ -1149,6 +1149,26 @@
       ],
       "status": "done",
       "acceptance": "DATA_WIDTH/DEPTH 参数矩阵通过；非 2 次幂深度负向 elaboration/runtime assertion 覆盖；almost-full 与 almost-empty 独立负向 case 覆盖；采用脚本级 coverage summary 量化命中。",
+      "knowledge_candidates": [
+        {
+          "id": "K_FIFO_001",
+          "title": "参数化组件早期覆盖退化合法边界",
+          "status": "promote_to_parent",
+          "summary": "T008 的 DATA_WIDTH/DEPTH 矩阵暴露了 DEPTH=1 RTL bug 和隐含 DEPTH=4 的 DV 假设，说明默认参数通过不能替代边界矩阵。"
+        },
+        {
+          "id": "K_FIFO_002",
+          "title": "失败 case 先 triage 再分派 owner",
+          "status": "promote_to_parent",
+          "summary": "同一轮矩阵同时出现 RTL bug 和 DV/testbench bug；先分类再分派能保护实现与验证职责边界。"
+        },
+        {
+          "id": "K_FIFO_003",
+          "title": "完成门禁需要 traceability 和覆盖结论",
+          "status": "promote_to_parent",
+          "summary": "T007/T008 证明 spec、feature、verification point、case、result 和 known gaps 串起来后，done 状态才可审计。"
+        }
+      ],
       "triage": [
         {
           "failure": "T008 初次默认矩阵在 fifo_sync_reg DEPTH=1 满时 push && pop 替换路径失败",
