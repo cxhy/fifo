@@ -1466,9 +1466,29 @@
     {
       "id": "T008",
       "title": "扩展参数矩阵和覆盖量化",
-      "status": "spec_draft",
+      "status": "dv_in_progress",
       "owner": "fifo-architect",
       "dv_owner": "fifo-dv-verifier",
+      "dispatch": {
+        "date": "2026-06-01",
+        "architect_review": "T008 不改变接口、状态语义、错误语义或 reset 语义；无需要用户确认的开放问题。",
+        "dv_scope": [
+          "dv/fifo_sync_reg/",
+          "dv/fifo_sync_mem/",
+          "dv/fifo_async_reg/",
+          "dv/fifo_async_mem/",
+          "scripts/run_fifo_sync_reg.sh",
+          "scripts/run_fifo_sync_mem.sh",
+          "scripts/run_fifo_async_reg.sh",
+          "scripts/run_fifo_async_mem.sh",
+          "docs/fifo-verification-plan.md"
+        ],
+        "integration_scope": [
+          "TASKS.json",
+          "memory/project-status.md"
+        ],
+        "notes": "DV agent 参数化现有 testbench，扩展 DATA_WIDTH/DEPTH 矩阵，拆分 almost-full/almost-empty 独立负向 case，补非 2 次幂 DEPTH elaboration 负向 case，并用脚本级 coverage summary 量化命中；不得修改 RTL。"
+      },
       "feature_scope": [
         "F_COMMON_001",
         "F_COMMON_002"
