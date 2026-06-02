@@ -1591,7 +1591,7 @@
         "bash scripts/run_t009_boundaries.sh: PASS structure=6/6 wrapper_contracts=2/2 cdc_sync_stage_configs=2/2 cdc_sync_illegal_configs=1/1 top_port_checks=3/3",
         "make verilator: PASS on 2026-06-02"
       ],
-      "commit": "this focused commit"
+      "commit": "7441341"
     }
   ],
   "validation": {
@@ -2120,7 +2120,7 @@
         ]
       },
       "acceptance": "Q002/Q003 已确认；新增 wrapper/sync module 已通过 lint、原有相关 FIFO 参数矩阵、T009 边界结构检查、wrapper/sync contract 定向测试和完整 make verilator；traceability、文档、memory 和验证结果已更新；完成后创建聚焦 commit。",
-      "commit": "this focused commit"
+      "commit": "7441341"
     }
   ]
 }
