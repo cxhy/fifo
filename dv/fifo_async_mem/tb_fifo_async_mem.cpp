@@ -17,10 +17,16 @@ namespace {
 #define DEPTH_VALUE 4
 #endif
 
+#ifndef CDC_SYNC_STAGES_VALUE
+#define CDC_SYNC_STAGES_VALUE 2
+#endif
+
 constexpr int kDataWidth = DATA_WIDTH_VALUE;
 constexpr int kDepth = DEPTH_VALUE;
+constexpr int kCdcSyncStages = CDC_SYNC_STAGES_VALUE;
 static_assert(kDataWidth > 0 && kDataWidth <= 32, "DATA_WIDTH_VALUE must be 1..32");
 static_assert(kDepth > 0, "DEPTH_VALUE must be greater than 0");
+static_assert(kCdcSyncStages >= 2, "CDC_SYNC_STAGES_VALUE must be at least 2");
 
 constexpr uint32_t data_mask(int width) {
     return width >= 32 ? 0xffffffffu : ((uint32_t{1} << width) - 1u);
@@ -159,11 +165,11 @@ void drive_reset(Vfifo_async_mem &dut, AsyncMemScoreboard &ref) {
     expect_eq("reset rd_empty", dut.rd_empty, 1);
 
     dut.wr_rst_n = 1;
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < kCdcSyncStages + 1; ++i) {
         wr_tick(dut, ref, false, 0);
     }
     dut.rd_rst_n = 1;
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < kCdcSyncStages + 1; ++i) {
         rd_tick(dut, ref, false);
     }
 }

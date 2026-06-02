@@ -31,13 +31,15 @@ module fifo_sync_mem #(
     localparam logic [LEVEL_WIDTH:0]   DEPTH_LEVEL_EXT    = (LEVEL_WIDTH + 1)'(DEPTH);
     localparam logic [LEVEL_WIDTH:0]   DEPTH_M1_LEVEL_EXT = (LEVEL_WIDTH + 1)'(DEPTH - 1);
 
-    logic [DATA_WIDTH-1:0]      mem [0:DEPTH-1];
     logic [ADDR_WIDTH-1:0]      wr_ptr;
     logic [ADDR_WIDTH-1:0]      rd_ptr;
+    logic [DATA_WIDTH-1:0]      mem_rd_data;
+    logic [DATA_WIDTH-1:0]      fall_through_data;
     logic [LEVEL_WIDTH:0]       cfg_almost_full_level_ext;
     logic [LEVEL_WIDTH:0]       cfg_almost_empty_level_ext;
 
     logic                       fall_through_read;
+    logic                       fall_through_output;
     logic                       mem_pop;
     logic                       mem_push;
 
@@ -71,15 +73,32 @@ module fifo_sync_mem #(
     assign fall_through_read = FALL_THROUGH && empty && push && pop;
     assign mem_pop           = pop && !empty;
     assign mem_push          = push && (!full || mem_pop) && !fall_through_read;
+    assign pop_data          = fall_through_output ? fall_through_data : mem_rd_data;
+
+    fifo_sync_1r1w_mem #(
+        .DATA_WIDTH(DATA_WIDTH),
+        .DEPTH(DEPTH),
+        .ADDR_WIDTH(ADDR_WIDTH)
+    ) u_mem (
+        .clk(clk),
+        .rst_n(rst_n),
+        .wr_en(mem_push),
+        .wr_addr(wr_ptr),
+        .wr_data(push_data),
+        .rd_en(mem_pop),
+        .rd_addr(rd_ptr),
+        .rd_data(mem_rd_data)
+    );
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            wr_ptr    <= '0;
-            rd_ptr    <= '0;
-            level     <= '0;
-            pop_data  <= '0;
-            overflow  <= 1'b0;
-            underrun  <= 1'b0;
+            wr_ptr              <= '0;
+            rd_ptr              <= '0;
+            level               <= '0;
+            fall_through_output <= 1'b0;
+            fall_through_data   <= '0;
+            overflow            <= 1'b0;
+            underrun            <= 1'b0;
         end else begin
             assert ((cfg_almost_full_level_ext >= {{LEVEL_WIDTH{1'b0}}, 1'b1}) &&
                     (cfg_almost_full_level_ext <= DEPTH_LEVEL_EXT))
@@ -91,13 +110,10 @@ module fifo_sync_mem #(
             underrun <= pop && empty && !(FALL_THROUGH && push);
 
             if (fall_through_read) begin
-                pop_data <= push_data;
+                fall_through_output <= 1'b1;
+                fall_through_data   <= push_data;
             end else if (mem_pop) begin
-                pop_data <= mem[rd_ptr];
-            end
-
-            if (mem_push) begin
-                mem[wr_ptr] <= push_data;
+                fall_through_output <= 1'b0;
             end
 
             if (mem_push) begin

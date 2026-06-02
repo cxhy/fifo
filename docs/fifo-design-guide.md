@@ -2,7 +2,7 @@
 
 **状态**: implemented
 **日期**: 2026-06-02
-**覆盖任务**: T002, T003, T004, T005, T009(spec draft)
+**覆盖任务**: T002, T003, T004, T005, T009
 
 ## 事实源关系
 
@@ -40,6 +40,8 @@
 - `DATA_WIDTH`: 数据位宽，必须大于 0。
 - `DEPTH`: FIFO 深度，必须大于 0 且为 2 的幂。
 - `FALL_THROUGH`: 仅同步 FIFO 支持。异步 FIFO 第一阶段不支持 fall-through。
+- `CDC_SYNC_STAGES`: 仅异步 FIFO 支持，默认 2，必须大于等于 2，用于配置内部
+  `fifo_cdc_sync` 同步级数。
 
 非法参数在 elaboration/simulation 阶段通过 `$fatal` 暴露。当前 RTL 兼容 `DEPTH == 1`，
 地址宽度会退化为 1，地址固定或自然环绕。
@@ -114,8 +116,8 @@ push && (!full || (pop && !empty)) && !fall_through_read
 
 - 写域维护 `wr_bin/wr_gray`。
 - 读域维护 `rd_bin/rd_gray`。
-- 写指针 Gray 值通过两级同步进入读域。
-- 读指针 Gray 值通过两级同步进入写域。
+- 写指针 Gray 值通过内部 `fifo_cdc_sync` 同步进入读域。
+- 读指针 Gray 值通过内部 `fifo_cdc_sync` 同步进入写域。
 - 各域将同步后的远端 Gray 指针转回 binary 后计算本地域 level。
 
 `DEPTH > 1` 时指针宽度为 `clog2(DEPTH)+1`，额外一位用于区分环绕；
@@ -142,6 +144,8 @@ rd_empty = rd_level == 0
 
 每个时钟域复位释放后会进入一次 alignment 状态，将本地域指针对齐到已采样的远端
 Gray 指针。alignment 期间 suppress 对应错误 pulse，并输出保守空状态。
+`fifo_cdc_sync` reset 时同步链各级清 0；alignment 等待同步输出有效后完成，等待时间随
+`CDC_SYNC_STAGES` 配置增长。
 
 ## Reset 语义
 
@@ -201,12 +205,13 @@ rd_almost_empty = rd_level <= cfg_almost_empty_level
 
 ## 后端差异
 
-`reg` 与 `mem` 版本当前都使用可综合 SystemVerilog array 保存数据。
+`reg` 版本当前使用可综合 SystemVerilog array 保存数据；`mem` 版本通过内部 memory
+wrapper 提供可替换 1R1W 后端边界。
 
 - 同步 `reg` 与 `mem` 的外部端口和状态语义一致。
 - 异步 `reg` 与 `mem` 的外部端口和状态语义一致。
-- `mem` 版本为后续绑定 memory macro 留出命名和验证区分，但当前不承诺具体 SRAM macro
-  的读延迟、冲突模式或时序约束。
+- `mem` 版本内部例化 `fifo_sync_1r1w_mem` 或 `fifo_async_1r1w_mem` 行为级模型，
+  不在 FIFO 顶层新增 memory 端口。
 
 若后续接入具体 SRAM macro，需要重新审查：
 
@@ -214,18 +219,18 @@ rd_almost_empty = rd_level <= cfg_almost_empty_level
 - 读延迟对 `pop_data` 的影响。
 - 异步读写端口和 CDC 约束。
 
-## T009 ASIC 替换边界草案
+## T009 ASIC 替换边界
 
 T009 将当前 memory 后端和异步 Gray pointer 同步链抽取为可替换边界。`Q002/Q003`
-已确认，可以进入 RTL/DV 分离实现。
+已确认并已实现。
 
-拟新增 RTL 边界：
+新增 RTL 边界：
 
 - `rtl/fifo_sync_1r1w_mem.sv`: `fifo_sync_mem` 内部使用的单时钟 1R1W memory wrapper。
 - `rtl/fifo_async_1r1w_mem.sv`: `fifo_async_mem` 内部使用的双时钟 1R1W memory wrapper。
 - `rtl/fifo_cdc_sync.sv`: `fifo_async_reg` 和 `fifo_async_mem` 内部使用的 Gray pointer sync module。
 
-草案保持不变的外部语义：
+保持不变的外部语义：
 
 - 四个 FIFO 顶层端口不变。
 - `overflow/underrun` 仍是单周期 pulse。
@@ -233,7 +238,7 @@ T009 将当前 memory 后端和异步 Gray pointer 同步链抽取为可替换�
 - 同步 `FALL_THROUGH` 和满时 `push && pop` 替换语义不变。
 - 异步 FIFO 仍不支持 fall-through，`wr_level/rd_level` 仍是本地域保守观测值。
 
-memory wrapper 草案 contract：
+memory wrapper contract：
 
 - wrapper 负责对 FIFO 侧提供稳定 `rd_data`，reset 后输出为 `0`。
 - 合法读后 `rd_data` 更新，无合法读时保持最近有效输出。
@@ -242,10 +247,11 @@ memory wrapper 草案 contract：
 - 若 vendor memory macro 无法通过 adapter 维持当前 `pop_data` 时序，必须另走
   change-control，T009 不静默改变 FIFO 外部语义。
 
-CDC sync 草案 contract：
+CDC sync contract：
 
 - `fifo_cdc_sync` 参数化 `WIDTH` 和 `STAGES`，`STAGES >= 2`。
-- sync module 使用目标域 `clk/rst_n`，reset 后输出为 `0`。
+- `fifo_async_reg/fifo_async_mem` 通过 `CDC_SYNC_STAGES` parameter 配置内部同步级数。
+- sync module 使用目标域 `clk/rst_n`，reset 后同步链各级和输出均为 `0`。
 - 抽取 sync module 不改变现有 alignment、保守 level、full/empty 或错误 pulse 行为。
 
 ## 设计限制
@@ -261,8 +267,11 @@ CDC sync 草案 contract：
 - RTL:
   - `rtl/fifo_sync_reg.sv`
   - `rtl/fifo_sync_mem.sv`
+  - `rtl/fifo_sync_1r1w_mem.sv`
   - `rtl/fifo_async_reg.sv`
   - `rtl/fifo_async_mem.sv`
+  - `rtl/fifo_async_1r1w_mem.sv`
+  - `rtl/fifo_cdc_sync.sv`
 - 设计规格: `docs/fifo-common-design.md`
 - 验证计划: `docs/fifo-verification-plan.md`
 - 任务事实源: `TASKS.json`

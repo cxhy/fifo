@@ -64,7 +64,7 @@
 - 被拒绝的替代方案: 只保留自然语言 feature/verification 列表；失败后直接让某个 agent 盲改；用仿真通过作为唯一完成标准。
 - 影响: `AGENTS.md`、`agents/fifo-architect.md` 和 `TASKS.json` 均需遵守新流程；后续任务必须记录 feature scope、verification scope、owner、写入范围、状态、验收标准、验证命令、结果和提交。
 
-## 2026-06-02: ASIC 替换边界草案
+## 2026-06-02: ASIC 替换边界
 
 - 状态: accepted
 - 决策: T009 在不改变现有 FIFO 顶层 `push/pop` 接口和外部行为的前提下，抽取
@@ -74,5 +74,9 @@
   adapter 和专用 synchronizer cell wrapper；当前不能引入 vendor-specific 实例或改变已冻结行为。
 - 已确认: `TASKS.json.open_questions.Q002` 确认 memory wrapper contract；`Q003` 确认 sync module
   reset、级数和 alignment 语义。
-- 影响: RTL/DV 可分离分派；后续 vendor macro 若无法满足当前 FIFO 外部语义，必须另走
-  change-control。
+- 实现结果: `fifo_sync_mem` 内部例化 `fifo_sync_1r1w_mem`，`fifo_async_mem` 内部例化
+  `fifo_async_1r1w_mem`；`fifo_async_reg/fifo_async_mem` 内部例化 `fifo_cdc_sync`。
+  异步 FIFO 通过 `CDC_SYNC_STAGES` parameter 配置内部同步级数，默认 2。
+- 影响: 后续 vendor macro 若无法满足当前 FIFO 外部语义，必须另走 change-control。
+  后续 ASIC/CDC signoff 仍需结合工艺约束处理 Gray bus skew、false path 和 synchronizer
+  placement，本仓库当前只提供 RTL 结构边界和 Verilator 行为验证。

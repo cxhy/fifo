@@ -1,6 +1,7 @@
 module fifo_async_reg #(
     parameter int DATA_WIDTH = 32,
-    parameter int DEPTH = 16
+    parameter int DEPTH = 16,
+    parameter int CDC_SYNC_STAGES = 2
 ) (
     input  logic                         wr_clk,
     input  logic                         wr_rst_n,
@@ -26,23 +27,24 @@ module fifo_async_reg #(
     localparam int ADDR_WIDTH  = (DEPTH <= 1) ? 1 : $clog2(DEPTH);
     localparam int PTR_WIDTH   = (DEPTH <= 1) ? 1 : (ADDR_WIDTH + 1);
     localparam int LEVEL_WIDTH = $clog2(DEPTH + 1);
+    localparam int ALIGN_COUNT_WIDTH = $clog2(CDC_SYNC_STAGES + 1);
 
     localparam logic [LEVEL_WIDTH-1:0] DEPTH_LEVEL    = LEVEL_WIDTH'(DEPTH);
     localparam logic [LEVEL_WIDTH:0]   DEPTH_LEVEL_EXT    = (LEVEL_WIDTH + 1)'(DEPTH);
     localparam logic [LEVEL_WIDTH:0]   DEPTH_M1_LEVEL_EXT = (LEVEL_WIDTH + 1)'(DEPTH - 1);
+    localparam logic [ALIGN_COUNT_WIDTH-1:0] ALIGN_COUNT_LAST =
+        ALIGN_COUNT_WIDTH'(CDC_SYNC_STAGES);
 
     logic [DATA_WIDTH-1:0]      storage [0:DEPTH-1];
 
     logic [PTR_WIDTH-1:0]       wr_bin;
     logic [PTR_WIDTH-1:0]       wr_gray;
-    logic [PTR_WIDTH-1:0]       wr_gray_rd_sync1;
-    logic [PTR_WIDTH-1:0]       wr_gray_rd_sync2;
+    logic [PTR_WIDTH-1:0]       wr_gray_rd_sync;
     logic [PTR_WIDTH-1:0]       wr_bin_rd_sync;
 
     logic [PTR_WIDTH-1:0]       rd_bin;
     logic [PTR_WIDTH-1:0]       rd_gray;
-    logic [PTR_WIDTH-1:0]       rd_gray_wr_sync1;
-    logic [PTR_WIDTH-1:0]       rd_gray_wr_sync2;
+    logic [PTR_WIDTH-1:0]       rd_gray_wr_sync;
     logic [PTR_WIDTH-1:0]       rd_bin_wr_sync;
 
     logic [PTR_WIDTH-1:0]       wr_level_raw;
@@ -53,6 +55,8 @@ module fifo_async_reg #(
     logic [LEVEL_WIDTH:0]       cfg_almost_empty_level_ext;
     logic                       wr_align_pending;
     logic                       rd_align_pending;
+    logic [ALIGN_COUNT_WIDTH-1:0] wr_align_count;
+    logic [ALIGN_COUNT_WIDTH-1:0] rd_align_count;
 
     function automatic logic [PTR_WIDTH-1:0] bin_to_gray(input logic [PTR_WIDTH-1:0] bin);
         bin_to_gray = (bin >> 1) ^ bin;
@@ -89,10 +93,33 @@ module fifo_async_reg #(
         if ((DEPTH & (DEPTH - 1)) != 0) begin
             $fatal(1, "fifo_async_reg: DEPTH must be a power of 2");
         end
+        if (CDC_SYNC_STAGES < 2) begin
+            $fatal(1, "fifo_async_reg: CDC_SYNC_STAGES must be at least 2");
+        end
     end
 
-    assign rd_bin_wr_sync = gray_to_bin(rd_gray_wr_sync2);
-    assign wr_bin_rd_sync = gray_to_bin(wr_gray_rd_sync2);
+    fifo_cdc_sync #(
+        .WIDTH(PTR_WIDTH),
+        .STAGES(CDC_SYNC_STAGES)
+    ) u_rd_gray_wr_sync (
+        .clk(wr_clk),
+        .rst_n(wr_rst_n),
+        .async_i(rd_gray),
+        .sync_o(rd_gray_wr_sync)
+    );
+
+    fifo_cdc_sync #(
+        .WIDTH(PTR_WIDTH),
+        .STAGES(CDC_SYNC_STAGES)
+    ) u_wr_gray_rd_sync (
+        .clk(rd_clk),
+        .rst_n(rd_rst_n),
+        .async_i(wr_gray),
+        .sync_o(wr_gray_rd_sync)
+    );
+
+    assign rd_bin_wr_sync = gray_to_bin(rd_gray_wr_sync);
+    assign wr_bin_rd_sync = gray_to_bin(wr_gray_rd_sync);
 
     assign wr_level_raw = wr_bin - rd_bin_wr_sync;
     assign rd_level_raw = wr_bin_rd_sync - rd_bin;
@@ -109,25 +136,26 @@ module fifo_async_reg #(
 
     always_ff @(posedge wr_clk or negedge wr_rst_n) begin
         if (!wr_rst_n) begin
-            rd_gray_wr_sync1 <= rd_gray;
-            rd_gray_wr_sync2 <= '0;
             wr_bin          <= '0;
             wr_gray         <= '0;
             wr_align_pending <= 1'b1;
+            wr_align_count  <= '0;
             overflow        <= 1'b0;
         end else begin
             assert ((cfg_almost_full_level_ext >= {{LEVEL_WIDTH{1'b0}}, 1'b1}) &&
                     (cfg_almost_full_level_ext <= DEPTH_LEVEL_EXT))
                 else $fatal(1, "fifo_async_reg: cfg_almost_full_level out of range");
 
-            rd_gray_wr_sync1 <= rd_gray;
-            rd_gray_wr_sync2 <= rd_gray_wr_sync1;
-
             if (wr_align_pending) begin
                 overflow <= 1'b0;
-                wr_bin   <= gray_to_bin(rd_gray_wr_sync1);
-                wr_gray  <= rd_gray_wr_sync1;
-                wr_align_pending <= 1'b0;
+                if (wr_align_count == ALIGN_COUNT_LAST) begin
+                    wr_bin <= gray_to_bin(rd_gray_wr_sync);
+                    wr_gray <= rd_gray_wr_sync;
+                    wr_align_pending <= 1'b0;
+                    wr_align_count <= '0;
+                end else begin
+                    wr_align_count <= wr_align_count + {{(ALIGN_COUNT_WIDTH-1){1'b0}}, 1'b1};
+                end
             end else begin
                 overflow <= push && wr_full;
             end
@@ -142,25 +170,26 @@ module fifo_async_reg #(
 
     always_ff @(posedge rd_clk or negedge rd_rst_n) begin
         if (!rd_rst_n) begin
-            wr_gray_rd_sync1 <= wr_gray;
-            wr_gray_rd_sync2 <= '0;
             rd_bin          <= '0;
             rd_gray         <= '0;
             rd_align_pending <= 1'b1;
+            rd_align_count  <= '0;
             pop_data        <= '0;
             underrun        <= 1'b0;
         end else begin
             assert (cfg_almost_empty_level_ext <= DEPTH_M1_LEVEL_EXT)
                 else $fatal(1, "fifo_async_reg: cfg_almost_empty_level out of range");
 
-            wr_gray_rd_sync1 <= wr_gray;
-            wr_gray_rd_sync2 <= wr_gray_rd_sync1;
-
             if (rd_align_pending) begin
                 underrun <= 1'b0;
-                rd_bin   <= gray_to_bin(wr_gray_rd_sync1);
-                rd_gray  <= wr_gray_rd_sync1;
-                rd_align_pending <= 1'b0;
+                if (rd_align_count == ALIGN_COUNT_LAST) begin
+                    rd_bin <= gray_to_bin(wr_gray_rd_sync);
+                    rd_gray <= wr_gray_rd_sync;
+                    rd_align_pending <= 1'b0;
+                    rd_align_count <= '0;
+                end else begin
+                    rd_align_count <= rd_align_count + {{(ALIGN_COUNT_WIDTH-1){1'b0}}, 1'b1};
+                end
             end else begin
                 underrun <= pop && rd_empty;
             end

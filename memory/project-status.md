@@ -17,9 +17,9 @@
 - `T008` 已完成：扩展 `DATA_WIDTH=1/8/17`、`DEPTH=1/2/4/8` 参数矩阵，拆分
   almost-full / almost-empty / 非 2 次幂深度负向 case，并使用脚本级 coverage summary
   量化命中。
-- `T009` 已进入 `spec_confirmed`：计划抽取 `fifo_sync_mem/fifo_async_mem` 的可替换
-  memory wrapper，以及 `fifo_async_reg/fifo_async_mem` 的 Gray pointer CDC sync module。
-  `Q002/Q003` 已确认，可进入 RTL/DV 分离实现。
+- `T009` 已完成：`fifo_sync_mem/fifo_async_mem` 内部例化可替换 memory wrapper，
+  `fifo_async_reg/fifo_async_mem` 内部例化可配置级数 Gray pointer CDC sync module；
+  `Q002/Q003` 已确认并关闭。
 - `fifo-architect` 负责 `TASKS.json`、`docs/`、`memory/` 的任务状态、约束一致性和集成检查，不写 RTL/DV。
 - `fifo-rtl-designer` 负责 RTL 实现，写入范围限定为：
   - `T002`: `rtl/fifo_sync_reg.sv`
@@ -43,6 +43,8 @@
 
 - `make lint` 通过：四个 RTL 均按独立 top 通过 Verilator lint。
 - `make verilator` 通过：四个模块的主测试和非法水线 assertion 测试均通过。
+- `bash scripts/run_t009_boundaries.sh` 通过：T009 结构检查、wrapper contract、
+  `fifo_cdc_sync` `STAGES=2/3` contract 和 `STAGES=1` 负向配置均通过。
 - 单独脚本均通过：
   - `bash scripts/run_fifo_sync_reg.sh`
   - `bash scripts/run_fifo_sync_mem.sh`
@@ -58,8 +60,12 @@
   `7495d57 fix: handle depth-one sync fifo replacement` 修复 `fifo_sync_reg` 和 `fifo_sync_mem`。
 - T008 集成时还修正了异步 reg/mem testbench 中隐含 `DEPTH=4` 的填满流程，使其按参数化
   `kDepth` 触发 full/overflow 检查。
-- T009 当前已运行 `jq empty TASKS.json` 校验 spec 结构；RTL/DV 实现后需要运行相关脚本和
-  `make lint` / `make verilator`。
+- T009 验证结果：
+  - `bash scripts/run_fifo_sync_mem.sh`: `positive_matrix=24/24`，`negative_cases=3/3`
+  - `bash scripts/run_fifo_async_reg.sh`: `positive_matrix=12/12`，`cdc_sync_stages=2`，`negative_cases=3/3`
+  - `bash scripts/run_fifo_async_mem.sh`: `positive_matrix=12/12`，`cdc_sync_stages=2`，`negative_cases=3/3`
+  - `FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=8 FIFO_DEPTHS=4` 的 async reg/mem smoke 均 PASS
+  - `make lint`、`make verilator` 均 PASS
 
 ## 已确认决策
 
@@ -73,11 +79,14 @@
 - 复位后 `pop_data` 统一为 `0`。
 - 非法水线配置通过 assertion 报出。
 - 同步 FIFO 满状态下 `push && pop && full` 是合法同周期替换，不触发 `overflow`。
+- memory 类型 FIFO 顶层端口不暴露 memory macro 接口；后续 vendor macro 必须通过 wrapper/adapter
+  满足 `rd_data` reset、合法读更新和无合法读保持 contract。
+- 异步 FIFO 的 Gray pointer 同步器由内部 `fifo_cdc_sync` 承担，`CDC_SYNC_STAGES` 默认 2 且可配置。
 
 ## 当前阻塞
 
-- 当前无待用户确认的 T009 spec 问题；`Q002/Q003` 已确认。
-- 第一阶段四个核心 FIFO 已完成；T009 正在进入 ASIC 替换边界 RTL/DV 实现。
+- 当前无待用户确认的 T009 spec 问题；`Q002/Q003` 已确认并实现完成。
+- 第一阶段四个核心 FIFO 和 T009 ASIC 替换边界均已完成。
 - 剩余覆盖建议：更大参数矩阵、系统化异步时钟比例 sweep、seed 可复现随机压力、Verilator
   line/toggle/branch coverage 或更细粒度自定义 coverage counter。
 

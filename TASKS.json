@@ -569,7 +569,7 @@
         "fifo_sync_mem"
       ],
       "in_current_iteration": true,
-      "status": "spec_confirmed"
+      "status": "implemented"
     },
     {
       "id": "F_MEM_IF_002",
@@ -583,7 +583,7 @@
         "fifo_async_mem"
       ],
       "in_current_iteration": true,
-      "status": "spec_confirmed"
+      "status": "implemented"
     },
     {
       "id": "F_MEM_IF_003",
@@ -599,7 +599,7 @@
         "fifo_async_mem"
       ],
       "in_current_iteration": true,
-      "status": "spec_confirmed"
+      "status": "implemented"
     },
     {
       "id": "F_CDC_SYNC_001",
@@ -614,7 +614,7 @@
         "fifo_async_mem"
       ],
       "in_current_iteration": true,
-      "status": "spec_confirmed"
+      "status": "implemented"
     },
     {
       "id": "F_CDC_SYNC_002",
@@ -630,7 +630,7 @@
         "fifo_async_mem"
       ],
       "in_current_iteration": true,
-      "status": "spec_confirmed"
+      "status": "implemented"
     },
     {
       "id": "F_ASIC_SWAP_001",
@@ -647,7 +647,7 @@
         "docs"
       ],
       "in_current_iteration": true,
-      "status": "spec_confirmed"
+      "status": "implemented"
     },
     {
       "id": "F_PROCESS_001",
@@ -914,7 +914,7 @@
         "F_MEM_IF_003"
       ],
       "priority": "P0",
-      "status": "planned"
+      "status": "covered"
     },
     {
       "id": "V_MEM_IF_002",
@@ -924,7 +924,7 @@
         "F_MEM_IF_003"
       ],
       "priority": "P0",
-      "status": "planned"
+      "status": "covered"
     },
     {
       "id": "V_CDC_SYNC_001",
@@ -934,7 +934,7 @@
         "F_CDC_SYNC_002"
       ],
       "priority": "P0",
-      "status": "planned"
+      "status": "covered"
     },
     {
       "id": "V_ASIC_BOUNDARY_001",
@@ -946,7 +946,7 @@
         "F_CDC_SYNC_001"
       ],
       "priority": "P1",
-      "status": "planned"
+      "status": "covered"
     },
     {
       "id": "V_PROCESS_001",
@@ -1253,9 +1253,11 @@
         "dv/fifo_sync_mem/tb_fifo_sync_mem.cpp::same_address",
         "dv/fifo_sync_mem/tb_fifo_sync_mem.cpp::full_push_pop_replace",
         "dv/fifo_sync_mem/tb_fifo_sync_mem.cpp::fall_through",
+        "dv/t009/tb_fifo_sync_1r1w_mem.cpp::wrapper_contract",
+        "scripts/run_t009_boundaries.sh::top_port_and_wrapper_structure",
         "make lint::fifo_sync_mem_with_wrapper"
       ],
-      "result": "PLANNED: pending user confirmation for Q002 before RTL/DV dispatch"
+      "result": "PASS on 2026-06-02: bash scripts/run_fifo_sync_mem.sh positive_matrix=24/24 negative_cases=3/3; bash scripts/run_t009_boundaries.sh wrapper_contracts=2/2 top_port_checks=3/3; make lint PASS"
     },
     {
       "id": "TR_T009_ASYNC_MEM_WRAPPER",
@@ -1282,9 +1284,11 @@
         "dv/fifo_async_mem/tb_fifo_async_mem.cpp::memory_conflict_and_latency",
         "dv/fifo_async_mem/tb_fifo_async_mem.cpp::cross_domain_ordering",
         "dv/fifo_async_mem/tb_fifo_async_mem.cpp::reset_and_output_hold",
+        "dv/t009/tb_fifo_async_1r1w_mem.cpp::wrapper_contract",
+        "scripts/run_t009_boundaries.sh::top_port_and_wrapper_structure",
         "make lint::fifo_async_mem_with_wrapper"
       ],
-      "result": "PLANNED: pending user confirmation for Q002 before RTL/DV dispatch"
+      "result": "PASS on 2026-06-02: bash scripts/run_fifo_async_mem.sh positive_matrix=12/12 cdc_sync_stages=2 negative_cases=3/3; FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=8 FIFO_DEPTHS=4 smoke PASS; bash scripts/run_t009_boundaries.sh wrapper_contracts=2/2"
     },
     {
       "id": "TR_T009_CDC_SYNC_MODULE",
@@ -1316,9 +1320,12 @@
         "scripts/run_fifo_async_mem.sh::existing_parameter_matrix",
         "dv/fifo_async_reg/tb_fifo_async_reg.cpp::wraparound_cdc_sequence",
         "dv/fifo_async_mem/tb_fifo_async_mem.cpp::memory_conflict_and_latency",
+        "dv/t009/tb_fifo_cdc_sync.cpp::stages_2_and_3_contract",
+        "dv/t009/tb_fifo_cdc_sync_illegal.cpp::stages_less_than_2_fatal",
+        "scripts/run_t009_boundaries.sh::cdc_sync_structure",
         "make lint::fifo_cdc_sync"
       ],
-      "result": "PLANNED: pending user confirmation for Q003 before RTL/DV dispatch"
+      "result": "PASS on 2026-06-02: bash scripts/run_fifo_async_reg.sh positive_matrix=12/12 cdc_sync_stages=2 negative_cases=3/3; bash scripts/run_fifo_async_mem.sh positive_matrix=12/12 cdc_sync_stages=2 negative_cases=3/3; FIFO_CDC_SYNC_STAGES=3 smoke PASS; fifo_cdc_sync STAGES=2/3 contract PASS; fifo_cdc_sync STAGES=1 negative PASS"
     },
     {
       "id": "TR_T009_ASIC_BOUNDARY_DOC",
@@ -1343,9 +1350,10 @@
         "manual review of docs/fifo-common-design.md::ASIC replacement boundary",
         "manual review of docs/fifo-verification-plan.md::T009 coverage",
         "make lint",
-        "make verilator"
+        "make verilator",
+        "bash scripts/run_t009_boundaries.sh"
       ],
-      "result": "PLANNED: documentation and validation pending user-confirmed spec"
+      "result": "PASS on 2026-06-02: make lint PASS; make verilator PASS including T009 boundary checks; docs and memory updated"
     },
     {
       "id": "TR_PROCESS_WORKFLOW",
@@ -1542,7 +1550,7 @@
     },
     {
       "id": "I005",
-      "title": "T009 ASIC 替换边界 spec 草案",
+      "title": "T009 ASIC 替换边界实现",
       "task_ids": [
         "T009"
       ],
@@ -1571,33 +1579,50 @@
         "memory/project-status.md",
         "memory/decisions.md"
       ],
-      "status": "spec_confirmed",
-      "acceptance": "T009 spec 已确认：memory FIFO 顶层接口不变，内部例化 memory wrapper 行为级模型；异步 FIFO 内部例化可配置级数 sync module；RTL/DV 可分离分派。",
+      "status": "done",
+      "acceptance": "T009 已实现：memory FIFO 顶层端口不变，内部例化 memory wrapper 行为级模型；异步 FIFO 内部例化可配置级数 sync module；相关 RTL/DV、结构边界、文档和 traceability 已更新。",
       "validation": [
-        "jq empty TASKS.json: PASS on 2026-06-02"
+        "jq empty TASKS.json: PASS on 2026-06-02",
+        "make lint: PASS on 2026-06-02",
+        "bash scripts/run_fifo_sync_mem.sh: PASS positive_matrix=24/24 negative_cases=3/3",
+        "bash scripts/run_fifo_async_reg.sh: PASS positive_matrix=12/12 cdc_sync_stages=2 negative_cases=3/3",
+        "bash scripts/run_fifo_async_mem.sh: PASS positive_matrix=12/12 cdc_sync_stages=2 negative_cases=3/3",
+        "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=8 FIFO_DEPTHS=4 async_reg/async_mem smoke: PASS",
+        "bash scripts/run_t009_boundaries.sh: PASS structure=6/6 wrapper_contracts=2/2 cdc_sync_stage_configs=2/2 cdc_sync_illegal_configs=1/1 top_port_checks=3/3",
+        "make verilator: PASS on 2026-06-02"
       ],
       "commit": "this focused commit"
     }
   ],
   "validation": {
     "latest_regression": {
-      "date": "2026-06-01",
+      "date": "2026-06-02",
       "commands": [
         "make lint",
         "bash scripts/run_fifo_sync_reg.sh",
         "bash scripts/run_fifo_sync_mem.sh",
         "bash scripts/run_fifo_async_reg.sh",
-        "bash scripts/run_fifo_async_mem.sh"
+        "bash scripts/run_fifo_async_mem.sh",
+        "bash scripts/run_t009_boundaries.sh",
+        "make verilator"
       ],
       "result": "PASS",
-      "source": "T008"
+      "source": "T009"
     },
     "current_iteration": {
       "id": "I005",
       "commands": [
-        "jq empty TASKS.json"
+        "jq empty TASKS.json",
+        "make lint",
+        "bash scripts/run_fifo_sync_mem.sh",
+        "bash scripts/run_fifo_async_reg.sh",
+        "bash scripts/run_fifo_async_mem.sh",
+        "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=8 FIFO_DEPTHS=4 bash scripts/run_fifo_async_reg.sh",
+        "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=8 FIFO_DEPTHS=4 bash scripts/run_fifo_async_mem.sh",
+        "bash scripts/run_t009_boundaries.sh",
+        "make verilator"
       ],
-      "result": "PASS for JSON structure; T009 spec confirmed by user on 2026-06-02"
+      "result": "PASS: T009 RTL/DV implementation, structure checks, wrapper/sync contract tests and full Verilator regression passed on 2026-06-02"
     },
     "coverage_review": {
       "status": "pass_with_known_gaps",
@@ -1654,7 +1679,7 @@
       "features": [
         "与 fifo_sync_reg 相同端口和外部语义",
         "memory array 存储",
-        "T009 草案：可替换同步 1R1W memory wrapper",
+        "T009：内部例化可替换同步 1R1W memory wrapper",
         "同步读写控制",
         "端口水线配置",
         "单周期 overflow/underrun pulse",
@@ -1663,14 +1688,14 @@
       "constraints": [
         "外部行为必须对齐 fifo_sync_reg",
         "memory 读延迟与 fall-through 组合必须明确",
-        "T009 草案：vendor memory macro 必须通过 wrapper/adapter 满足 FIFO 侧读数据 reset、更新和保持 contract",
+        "T009：vendor memory macro 必须通过 wrapper/adapter 满足 FIFO 侧读数据 reset、更新和保持 contract",
         "错误请求不能写坏 memory 内容",
         "DEPTH 必须为 2 的幂"
       ],
       "verification": [
         "复用 fifo_sync_reg 行为测试",
         "memory 读写同地址场景",
-        "T009 计划：memory wrapper 后原同步矩阵无回归",
+        "T009：memory wrapper 后原同步矩阵无回归",
         "满时替换",
         "空时透传",
         "复位后 pop_data 为 0",
@@ -1686,7 +1711,7 @@
         "register array 存储",
         "独立 wr_rst_n 和 rd_rst_n",
         "Gray pointer 跨域同步",
-        "T009 草案：Gray pointer 同步链抽取为可替换 sync module",
+        "T009：Gray pointer 同步链抽取为可替换 sync module",
         "wr_full/wr_level/wr_almost_full 写域状态",
         "rd_empty/rd_level/rd_almost_empty 读域状态",
         "写域 overflow pulse",
@@ -1697,7 +1722,7 @@
         "不支持 fall-through",
         "不提供全局瞬时精确 level",
         "跨域指针至少两级同步",
-        "T009 草案：sync module 必须保持现有 alignment 和保守 level 语义",
+        "T009：sync module 必须保持现有 alignment 和保守 level 语义",
         "写侧水线配置只在写域使用",
         "读侧水线配置只在读域使用"
       ],
@@ -1706,7 +1731,7 @@
         "独立 reset",
         "写满和读空",
         "跨域顺序保持",
-        "T009 计划：sync module 后异步 CDC 矩阵无回归",
+        "T009：sync module 后异步 CDC 矩阵无回归",
         "写域 overflow pulse",
         "读域 underrun pulse",
         "复位后 pop_data 为 0",
@@ -1720,8 +1745,8 @@
       "features": [
         "与 fifo_async_reg 相同端口和外部语义",
         "memory array 存储",
-        "T009 草案：可替换双时钟 1R1W memory wrapper",
-        "T009 草案：Gray pointer 同步链抽取为可替换 sync module",
+        "T009：内部例化可替换双时钟 1R1W memory wrapper",
+        "T009：Gray pointer 同步链抽取为可替换 sync module",
         "异步跨域读写",
         "Gray pointer 跨域同步",
         "写域和读域独立状态观测",
@@ -1732,8 +1757,8 @@
       "constraints": [
         "外部行为必须对齐 fifo_async_reg",
         "memory 读写端口模型必须可综合并可由 Verilator 验证",
-        "T009 草案：vendor memory macro 必须通过 wrapper/adapter 满足 FIFO 侧读数据 reset、更新和保持 contract",
-        "T009 草案：sync module 必须保持现有 alignment 和保守 level 语义",
+        "T009：vendor memory macro 必须通过 wrapper/adapter 满足 FIFO 侧读数据 reset、更新和保持 contract",
+        "T009：sync module 必须保持现有 alignment 和保守 level 语义",
         "不支持异步 fall-through",
         "错误请求不能破坏已存数据",
         "DEPTH 必须为 2 的幂"
@@ -1741,7 +1766,7 @@
       "verification": [
         "复用 fifo_async_reg 行为测试",
         "memory 后端读写冲突",
-        "T009 计划：memory wrapper 和 sync module 后原异步矩阵无回归",
+        "T009：memory wrapper 和 sync module 后原异步矩阵无回归",
         "跨域读延迟",
         "复位后 pop_data 为 0",
         "reset 后输出保持行为"
@@ -2017,7 +2042,7 @@
     {
       "id": "T009",
       "title": "抽取 ASIC 可替换 memory 和 CDC sync 边界",
-      "status": "spec_confirmed",
+      "status": "done",
       "owner": "fifo-architect",
       "rtl_owner": "fifo-rtl-designer",
       "dv_owner": "fifo-dv-verifier",
@@ -2036,10 +2061,7 @@
         "V_CDC_SYNC_001",
         "V_ASIC_BOUNDARY_001"
       ],
-      "open_questions": [
-        "Q002",
-        "Q003"
-      ],
+      "open_questions": [],
       "dispatch": {
         "date": "2026-06-02",
         "architect_scope": [
@@ -2065,10 +2087,12 @@
           "scripts/run_fifo_sync_mem.sh",
           "scripts/run_fifo_async_mem.sh",
           "scripts/run_fifo_async_reg.sh",
+          "scripts/run_t009_boundaries.sh",
+          "dv/t009/",
           "Makefile",
           "docs/fifo-verification-plan.md"
         ],
-        "notes": "Q002/Q003 已确认。RTL agent 只实现 memory wrapper/sync module 和内部实例化；DV agent 只更新 testbench、脚本和验证计划，不修改 RTL。"
+        "notes": "Q002/Q003 已确认并已实现。RTL agent 只实现 memory wrapper/sync module 和内部实例化；DV agent 更新 testbench、脚本、T009 边界检查和验证计划，不修改 RTL。"
       },
       "spec_draft": {
         "goals": [
@@ -2095,7 +2119,7 @@
           "复位释放后的 alignment 继续 suppress 对应错误 pulse，并将本地域指针对齐到同步后的远端 Gray pointer。"
         ]
       },
-      "acceptance": "用户确认 Q002/Q003 后，RTL/DV 可分离分派；新增 wrapper/sync module 通过 lint 和原有相关 FIFO 参数矩阵；traceability、文档、memory 和验证结果更新；完成后创建聚焦 commit。",
+      "acceptance": "Q002/Q003 已确认；新增 wrapper/sync module 已通过 lint、原有相关 FIFO 参数矩阵、T009 边界结构检查、wrapper/sync contract 定向测试和完整 make verilator；traceability、文档、memory 和验证结果已更新；完成后创建聚焦 commit。",
       "commit": "this focused commit"
     }
   ]

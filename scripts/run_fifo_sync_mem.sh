@@ -5,11 +5,13 @@ ulimit -c 0
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
-rtl="rtl/fifo_sync_mem.sv"
-if [[ ! -f "${rtl}" ]]; then
-  echo "ERROR: ${rtl} not found; RTL agent has not produced fifo_sync_mem yet." >&2
-  exit 1
-fi
+rtl_files=(rtl/fifo_sync_1r1w_mem.sv rtl/fifo_sync_mem.sv)
+for rtl in "${rtl_files[@]}"; do
+  if [[ ! -f "${rtl}" ]]; then
+    echo "ERROR: ${rtl} not found; RTL agent has not produced T009 fifo_sync_mem dependencies." >&2
+    exit 1
+  fi
+done
 
 data_widths=(${FIFO_DATA_WIDTHS:-1 8 17})
 depths=(${FIFO_DEPTHS:-1 2 4 8})
@@ -24,7 +26,7 @@ run_case() {
   local name="dw${dw}_d${depth}_ft${ft}"
   local mdir="build/fifo_sync_mem/${name}"
   mkdir -p "${mdir}"
-  verilator --cc "${rtl}" --top-module fifo_sync_mem --exe dv/fifo_sync_mem/tb_fifo_sync_mem.cpp \
+  verilator --cc "${rtl_files[@]}" --top-module fifo_sync_mem --exe dv/fifo_sync_mem/tb_fifo_sync_mem.cpp \
     --Mdir "${mdir}" --assert -Wall -Wno-fatal \
     -GDATA_WIDTH="${dw}" -GDEPTH="${depth}" -GFALL_THROUGH="${ft}" \
     -CFLAGS "-std=c++17 -DDATA_WIDTH_VALUE=${dw} -DDEPTH_VALUE=${depth} -DFALL_THROUGH_VALUE=${ft}" --build
@@ -38,7 +40,7 @@ run_illegal_waterline() {
   local mode_macro="$2"
   local mdir="build/fifo_sync_mem/negative_${case_name}"
   mkdir -p "${mdir}"
-  verilator --cc "${rtl}" --top-module fifo_sync_mem --exe dv/fifo_sync_mem/tb_illegal_config.cpp \
+  verilator --cc "${rtl_files[@]}" --top-module fifo_sync_mem --exe dv/fifo_sync_mem/tb_illegal_config.cpp \
     --Mdir "${mdir}" --assert -Wall -Wno-fatal \
     -GDATA_WIDTH=8 -GDEPTH=4 -GFALL_THROUGH=0 \
     -CFLAGS "-std=c++17 -DDEPTH_VALUE=4 -D${mode_macro}=1" --build
@@ -54,7 +56,7 @@ run_illegal_depth() {
   local mdir="build/fifo_sync_mem/negative_non_power_of_two_depth"
   mkdir -p "${mdir}"
   set +e
-  verilator --cc "${rtl}" --top-module fifo_sync_mem --exe dv/fifo_sync_mem/tb_illegal_config.cpp \
+  verilator --cc "${rtl_files[@]}" --top-module fifo_sync_mem --exe dv/fifo_sync_mem/tb_illegal_config.cpp \
     --Mdir "${mdir}" --assert -Wall -Wno-fatal \
     -GDATA_WIDTH=8 -GDEPTH=3 -GFALL_THROUGH=0 \
     -CFLAGS "-std=c++17 -DDEPTH_VALUE=3 -DILLEGAL_POWER_OF_TWO_DEPTH=1" --build
@@ -88,4 +90,4 @@ run_illegal_depth
 expected_positive=$((${#data_widths[@]} * ${#depths[@]} * ${#fall_throughs[@]}))
 expected_negative=3
 echo "COVERAGE fifo_sync_mem positive_matrix=${positive_count}/${expected_positive} data_widths=${data_widths[*]} depths=${depths[*]} fall_throughs=${fall_throughs[*]} negative_cases=${negative_count}/${expected_negative}"
-echo "PASS fifo_sync_mem T008 regression"
+echo "PASS fifo_sync_mem T008/T009 regression"

@@ -5,27 +5,30 @@ ulimit -c 0
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
-rtl="rtl/fifo_async_reg.sv"
-if [[ ! -f "${rtl}" ]]; then
-  echo "ERROR: ${rtl} not found; RTL agent has not produced fifo_async_reg yet." >&2
-  exit 1
-fi
+rtl_files=(rtl/fifo_cdc_sync.sv rtl/fifo_async_reg.sv)
+for rtl in "${rtl_files[@]}"; do
+  if [[ ! -f "${rtl}" ]]; then
+    echo "ERROR: ${rtl} not found; RTL agent has not produced T009 fifo_async_reg dependencies." >&2
+    exit 1
+  fi
+done
 
 data_widths=(${FIFO_DATA_WIDTHS:-1 8 17})
 depths=(${FIFO_DEPTHS:-1 2 4 8})
+cdc_sync_stages="${FIFO_CDC_SYNC_STAGES:-2}"
 positive_count=0
 negative_count=0
 
 run_case() {
   local dw="$1"
   local depth="$2"
-  local name="dw${dw}_d${depth}"
+  local name="dw${dw}_d${depth}_s${cdc_sync_stages}"
   local mdir="build/fifo_async_reg/${name}"
   mkdir -p "${mdir}"
-  verilator --cc "${rtl}" --top-module fifo_async_reg --exe dv/fifo_async_reg/tb_fifo_async_reg.cpp \
+  verilator --cc "${rtl_files[@]}" --top-module fifo_async_reg --exe dv/fifo_async_reg/tb_fifo_async_reg.cpp \
     --Mdir "${mdir}" --assert -Wall -Wno-fatal \
-    -GDATA_WIDTH="${dw}" -GDEPTH="${depth}" \
-    -CFLAGS "-std=c++17 -DDATA_WIDTH_VALUE=${dw} -DDEPTH_VALUE=${depth}" --build
+    -GDATA_WIDTH="${dw}" -GDEPTH="${depth}" -GCDC_SYNC_STAGES="${cdc_sync_stages}" \
+    -CFLAGS "-std=c++17 -DDATA_WIDTH_VALUE=${dw} -DDEPTH_VALUE=${depth} -DCDC_SYNC_STAGES_VALUE=${cdc_sync_stages}" --build
   "${mdir}/Vfifo_async_reg"
   positive_count=$((positive_count + 1))
   echo "COVER fifo_async_reg positive DATA_WIDTH=${dw} DEPTH=${depth}"
@@ -36,9 +39,9 @@ run_illegal_waterline() {
   local mode_macro="$2"
   local mdir="build/fifo_async_reg/negative_${case_name}"
   mkdir -p "${mdir}"
-  verilator --cc "${rtl}" --top-module fifo_async_reg --exe dv/fifo_async_reg/tb_illegal_config.cpp \
+  verilator --cc "${rtl_files[@]}" --top-module fifo_async_reg --exe dv/fifo_async_reg/tb_illegal_config.cpp \
     --Mdir "${mdir}" --assert -Wall -Wno-fatal \
-    -GDATA_WIDTH=8 -GDEPTH=4 \
+    -GDATA_WIDTH=8 -GDEPTH=4 -GCDC_SYNC_STAGES="${cdc_sync_stages}" \
     -CFLAGS "-std=c++17 -DDEPTH_VALUE=4 -D${mode_macro}=1" --build
   if "${mdir}/Vfifo_async_reg"; then
     echo "ERROR: ${case_name} did not trigger an assertion." >&2
@@ -52,9 +55,9 @@ run_illegal_depth() {
   local mdir="build/fifo_async_reg/negative_non_power_of_two_depth"
   mkdir -p "${mdir}"
   set +e
-  verilator --cc "${rtl}" --top-module fifo_async_reg --exe dv/fifo_async_reg/tb_illegal_config.cpp \
+  verilator --cc "${rtl_files[@]}" --top-module fifo_async_reg --exe dv/fifo_async_reg/tb_illegal_config.cpp \
     --Mdir "${mdir}" --assert -Wall -Wno-fatal \
-    -GDATA_WIDTH=8 -GDEPTH=3 \
+    -GDATA_WIDTH=8 -GDEPTH=3 -GCDC_SYNC_STAGES="${cdc_sync_stages}" \
     -CFLAGS "-std=c++17 -DDEPTH_VALUE=3 -DILLEGAL_POWER_OF_TWO_DEPTH=1" --build
   local build_rc=$?
   set -e
@@ -83,5 +86,5 @@ run_illegal_depth
 
 expected_positive=$((${#data_widths[@]} * ${#depths[@]}))
 expected_negative=3
-echo "COVERAGE fifo_async_reg positive_matrix=${positive_count}/${expected_positive} data_widths=${data_widths[*]} depths=${depths[*]} negative_cases=${negative_count}/${expected_negative}"
-echo "PASS fifo_async_reg T008 regression"
+echo "COVERAGE fifo_async_reg positive_matrix=${positive_count}/${expected_positive} data_widths=${data_widths[*]} depths=${depths[*]} cdc_sync_stages=${cdc_sync_stages} negative_cases=${negative_count}/${expected_negative}"
+echo "PASS fifo_async_reg T008/T009 regression"

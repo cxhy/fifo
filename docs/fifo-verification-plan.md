@@ -3,7 +3,7 @@
 **状态**: implemented
 **日期**: 2026-06-02
 **角色**: fifo-dv-verifier
-**覆盖任务**: T002, T003, T004, T005, T008, T009(spec draft)
+**覆盖任务**: T002, T003, T004, T005, T008, T009
 
 ## 验证目标
 
@@ -35,6 +35,9 @@
 - 主 testbench 内置 reference model 和 scoreboard，直接检查 DUT 端口输出。
 - T008 后主 testbench 由脚本传入 `DATA_WIDTH_VALUE`、`DEPTH_VALUE` 和同步 FIFO 的
   `FALL_THROUGH_VALUE`，与 Verilator `-GDATA_WIDTH/-GDEPTH/-GFALL_THROUGH` 保持一致。
+- T009 后异步 FIFO testbench 由脚本传入 `CDC_SYNC_STAGES_VALUE`，与 Verilator
+  `-GCDC_SYNC_STAGES` 保持一致；默认同步级数为 2。
+- `dv/t009/` 提供 memory wrapper 与 CDC sync module 的边界 contract 定向测试。
 - 默认参数矩阵覆盖 `DATA_WIDTH=1/8/17` 和 `DEPTH=1/2/4/8`；同步 FIFO 额外分别编译
   `FALL_THROUGH=0/1`。
 - 脚本使用 `verilator --cc --exe --assert -Wall -Wno-fatal --build` 构建并运行。
@@ -49,15 +52,17 @@
   - `bash scripts/run_fifo_sync_mem.sh`
   - `bash scripts/run_fifo_async_reg.sh`
   - `bash scripts/run_fifo_async_mem.sh`
+  - `bash scripts/run_t009_boundaries.sh`
 
-`make verilator` 会顺序调用 4 个单模块脚本。每个脚本默认运行参数矩阵和独立负向 case，并打印
-`COVERAGE <module> positive_matrix=... negative_cases=...` 作为轻量覆盖摘要。
+`make verilator` 会顺序调用 4 个单模块脚本和 T009 边界脚本。每个 FIFO 脚本默认运行参数矩阵和
+独立负向 case，并打印 `COVERAGE <module> positive_matrix=... negative_cases=...` 作为轻量覆盖摘要。
 
 矩阵可以用环境变量临时收窄：
 
 ```text
 FIFO_DATA_WIDTHS="8" FIFO_DEPTHS="1" FIFO_FALL_THROUGHS="0" bash scripts/run_fifo_sync_reg.sh
 FIFO_DATA_WIDTHS="8" FIFO_DEPTHS="1" bash scripts/run_fifo_async_reg.sh
+FIFO_CDC_SYNC_STAGES="3" FIFO_DATA_WIDTHS="8" FIFO_DEPTHS="4" bash scripts/run_fifo_async_mem.sh
 ```
 
 ## Reference Model 与 Scoreboard 策略
@@ -89,6 +94,15 @@ FIFO_DATA_WIDTHS="8" FIFO_DEPTHS="1" bash scripts/run_fifo_async_reg.sh
 | `fifo_sync_mem` | `dv/fifo_sync_mem/tb_fifo_sync_mem.cpp` | 同步 FIFO 外部语义复用；memory 同地址读写/替换压力；写满读空；overflow；underrun；fall-through；reset 输出为 0；输出保持 |
 | `fifo_async_reg` | `dv/fifo_async_reg/tb_fifo_async_reg.cpp` | 独立 `wr_rst_n/rd_rst_n`；写到读跨域可见性；写满和 `overflow`；读空和 `underrun`；跨域顺序保持；wraparound/CDC 序列；保守 `wr_level/rd_level`；水线状态 |
 | `fifo_async_mem` | `dv/fifo_async_mem/tb_fifo_async_mem.cpp` | 异步 FIFO 外部语义复用；独立 reset 和输出保持；读延迟；写满读空；overflow/underrun；memory 冲突和 wraparound；跨域顺序保持；保守状态和水线状态 |
+
+T009 边界用例：
+
+| 边界 | Testbench/脚本 | 已覆盖场景 |
+| --- | --- | --- |
+| `fifo_sync_1r1w_mem` | `dv/t009/tb_fifo_sync_1r1w_mem.cpp` | reset 后 `rd_data==0`；合法读更新；无合法读保持 |
+| `fifo_async_1r1w_mem` | `dv/t009/tb_fifo_async_1r1w_mem.cpp` | 双时钟写读；读域 reset 输出为 0；无合法读保持 |
+| `fifo_cdc_sync` | `dv/t009/tb_fifo_cdc_sync.cpp` / `dv/t009/tb_fifo_cdc_sync_illegal.cpp` | reset 后输出为 0；`STAGES=2/3` pipeline 延迟和输出更新；`STAGES=1` 触发 fatal |
+| ASIC 边界结构 | `scripts/run_t009_boundaries.sh` | 顶层无新增 memory 端口；内部 wrapper/sync 实例存在；新增模块 standalone lint |
 
 ## T008 参数矩阵与覆盖摘要
 
@@ -146,10 +160,21 @@ T008 初次运行发现 `DEPTH=1` 同步 FIFO 满时 `push && pop` 替换路径�
 triage 分类为 RTL bug，已由 RTL agent 修复 `fifo_sync_reg` 和 `fifo_sync_mem` 的
 `DEPTH=1` 指针回绕行为，并通过上述矩阵回归。
 
+2026-06-02 推进 T009 时运行：
+
+```text
+make lint                    PASS
+bash scripts/run_fifo_sync_mem.sh   PASS, positive_matrix=24/24, negative_cases=3/3
+bash scripts/run_fifo_async_reg.sh  PASS, positive_matrix=12/12, cdc_sync_stages=2, negative_cases=3/3
+bash scripts/run_fifo_async_mem.sh  PASS, positive_matrix=12/12, cdc_sync_stages=2, negative_cases=3/3
+FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=8 FIFO_DEPTHS=4 bash scripts/run_fifo_async_reg.sh PASS
+FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=8 FIFO_DEPTHS=4 bash scripts/run_fifo_async_mem.sh PASS
+bash scripts/run_t009_boundaries.sh PASS, structure=6/6, wrapper_contracts=2/2, cdc_sync_stage_configs=2/2, cdc_sync_illegal_configs=1/1, top_port_checks=3/3
+make verilator PASS
+```
+
 ## 当前覆盖缺口与后续建议
 
-- T009 已确认 memory wrapper 和 CDC sync module 的规格，新增边界验证计划尚未实现；
-  本轮将按 `V_MEM_IF_001`、`V_MEM_IF_002`、`V_CDC_SYNC_001` 和 `V_ASIC_BOUNDARY_001` 推进。
 - 参数矩阵已扩展到 `DATA_WIDTH=1/8/17`、`DEPTH=1/2/4/8`。后续可继续增加更大深度、
   更宽数据宽度和更多 level 编码组合。
 - 非 2 次幂深度已有 `DEPTH=3` 负向路径覆盖。后续可扩展更多非法参数组合，例如
@@ -160,12 +185,13 @@ triage 分类为 RTL bug，已由 RTL agent 修复 `fifo_sync_reg` 和 `fifo_syn
 - CDC 结构本身未做静态 CDC 检查；当前只从端口行为和跨域保守状态验证，建议后续配合 lint/CDC 工具或结构性检查。
 - 尚未验证 reset 与有效交易同周期释放/拉低的更多边界组合。建议补充 reset 交错、局部 reset 后残留数据处理和 reset 后重新填充的定向用例。
 
-## T009 计划验证项
+## T009 验证项
 
-T009 目标是在不改变 FIFO 顶层端口和外部行为的前提下，抽取 ASIC 可替换边界。DV 期望
-仍来自已确认规格，不从 RTL 实现反推。
+T009 目标是在不改变 FIFO 顶层端口和外部行为的前提下，抽取 ASIC 可替换边界。DV 期望仍来自
+已确认规格，不从 RTL 实现反推。当前 `V_MEM_IF_001`、`V_MEM_IF_002`、`V_CDC_SYNC_001`
+和 `V_ASIC_BOUNDARY_001` 均已覆盖。
 
-计划覆盖：
+覆盖：
 
 - `V_MEM_IF_001`: `fifo_sync_mem` 使用 `fifo_sync_1r1w_mem` 后，复用现有参数矩阵，
   覆盖 fall-through、满时替换、同地址读写、reset 输出为 `0` 和输出保持。
@@ -174,10 +200,10 @@ T009 目标是在不改变 FIFO 顶层端口和外部行为的前提下，抽取
 - `V_CDC_SYNC_001`: `fifo_async_reg` 和 `fifo_async_mem` 使用 `fifo_cdc_sync` 后，
   复用异步参数矩阵，覆盖 reset 后 alignment、wraparound CDC、保守 `wr_level/rd_level`
   和水线状态。
-- `V_ASIC_BOUNDARY_001`: `make lint` 和相关 `scripts/run_fifo_*.sh` 必须包含新增 RTL
-  文件，避免 Verilator 只编译顶层单文件导致实例缺失。
+- `V_ASIC_BOUNDARY_001`: `make lint`、相关 `scripts/run_fifo_*.sh` 和
+  `scripts/run_t009_boundaries.sh` 包含新增 RTL 文件，避免 Verilator 只编译顶层单文件导致实例缺失。
 
-确认后建议最窄验证顺序：
+建议最窄复验顺序：
 
 ```text
 jq empty TASKS.json

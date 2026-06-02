@@ -1,6 +1,6 @@
 # FIFO 公共组件设计规格
 
-**状态**: draft
+**状态**: implemented
 **日期**: 2026-06-02
 
 ## 文档索引
@@ -35,10 +35,12 @@
 - `DATA_WIDTH`: 数据位宽，必须大于 0。
 - `DEPTH`: FIFO 可存储元素数，第一阶段必须大于 0 且为 2 的幂。
 - `FALL_THROUGH`: 仅同步 FIFO 支持。异步 FIFO 第一阶段不支持透传。
+- `CDC_SYNC_STAGES`: 仅异步 FIFO 支持，默认 2，必须大于等于 2，用于配置内部
+  `fifo_cdc_sync` 同步级数。
 
 参数非法时，RTL 或仿真阶段应通过 elaboration-time assertion 暴露错误。
 
-## 同步 FIFO 接口草案
+## 同步 FIFO 接口
 
 ```systemverilog
 module fifo_sync_reg #(
@@ -70,12 +72,13 @@ module fifo_sync_reg #(
 
 `fifo_sync_mem` 使用同一接口。
 
-## 异步 FIFO 接口草案
+## 异步 FIFO 接口
 
 ```systemverilog
 module fifo_async_reg #(
     parameter int DATA_WIDTH = 32,
-    parameter int DEPTH = 16
+    parameter int DEPTH = 16,
+    parameter int CDC_SYNC_STAGES = 2
 ) (
     input  logic                         wr_clk,
     input  logic                         wr_rst_n,
@@ -144,20 +147,21 @@ module fifo_async_reg #(
 
 跨域指针同步使用 Gray pointer 和至少两级同步器。第一阶段要求 `DEPTH` 为 2 的幂，以保持指针环和 full/empty 判断简单可靠。
 
-## T009 ASIC 替换边界草案
+## T009 ASIC 替换边界
 
-**状态**: confirmed
+**状态**: implemented
 
-本节是 T009 已确认规格，目标是在不改变现有 FIFO 顶层 `push/pop` 端口和外部行为的前提下，
-抽取 ASIC 阶段可替换边界。
+本节是 T009 已实现规格，目标是在不改变现有 FIFO 顶层 `push/pop` 端口和外部行为的前提下，
+抽取 ASIC 阶段可替换边界。当前 RTL 已提供行为级 wrapper，后续 ASIC 流程可用 vendor
+macro adapter 或 synchronizer cell wrapper 替换对应内部模块。
 
 ### Memory Wrapper 边界
 
-`fifo_sync_mem` 和 `fifo_async_mem` 后续拟改为内部实例化可替换 memory wrapper。FIFO
+`fifo_sync_mem` 和 `fifo_async_mem` 已改为内部实例化可替换 memory wrapper。FIFO
 顶层端口保持不变，memory wrapper 作为 RTL 内部后端边界，用于后续 vendor memory macro
 adapter 替换。
 
-同步 memory wrapper 草案：
+同步 memory wrapper：
 
 ```systemverilog
 module fifo_sync_1r1w_mem #(
@@ -176,7 +180,7 @@ module fifo_sync_1r1w_mem #(
 );
 ```
 
-异步 memory wrapper 草案：
+异步 memory wrapper：
 
 ```systemverilog
 module fifo_async_1r1w_mem #(
@@ -197,7 +201,7 @@ module fifo_async_1r1w_mem #(
 );
 ```
 
-草案 contract：
+contract：
 
 - wrapper 对 FIFO 侧暴露 1R1W 行为；同步版本为单时钟，异步版本为写读双时钟。
 - `rd_data` 在 reset 后为 `0`，合法 `rd_en` 后更新为读取数据，无合法 `rd_en` 时保持最近有效输出。
@@ -212,10 +216,10 @@ module fifo_async_1r1w_mem #(
 
 ### CDC Sync Module 边界
 
-`fifo_async_reg` 和 `fifo_async_mem` 后续拟将 Gray pointer 两级同步链抽取为独立
+`fifo_async_reg` 和 `fifo_async_mem` 已将 Gray pointer 同步链抽取为独立
 sync module，便于 ASIC 阶段替换为专用 synchronizer cell wrapper。
 
-sync module 草案：
+sync module：
 
 ```systemverilog
 module fifo_cdc_sync #(
@@ -229,10 +233,11 @@ module fifo_cdc_sync #(
 );
 ```
 
-草案 contract：
+contract：
 
-- `STAGES` 必须大于等于 2，默认 2。
-- `clk/rst_n` 属于目标时钟域；reset 后 `sync_o == 0`。
+- `STAGES` 必须大于等于 2，默认 2；`fifo_async_reg/fifo_async_mem` 通过
+  `CDC_SYNC_STAGES` parameter 配置内部 `fifo_cdc_sync` 实例。
+- `clk/rst_n` 属于目标时钟域；reset 后同步链各级和 `sync_o` 均为 0。
 - sync module 只同步 Gray pointer 向量，不承担 Gray/binary 转换、full/empty 判定或 level 计算。
 - 抽取后必须保持现有 alignment 行为：reset 释放后本地域指针对齐到同步后的远端 Gray pointer，
   alignment 期间 suppress 对应 `overflow/underrun`，并保持保守状态输出。
