@@ -1,8 +1,8 @@
 # FIFO 设计文档
 
 **状态**: implemented
-**日期**: 2026-06-01
-**覆盖任务**: T002, T003, T004, T005
+**日期**: 2026-06-02
+**覆盖任务**: T002, T003, T004, T005, T009(spec draft)
 
 ## 事实源关系
 
@@ -213,6 +213,41 @@ rd_almost_empty = rd_level <= cfg_almost_empty_level
 - 同地址读写冲突语义。
 - 读延迟对 `pop_data` 的影响。
 - 异步读写端口和 CDC 约束。
+
+## T009 ASIC 替换边界草案
+
+T009 计划将当前 memory 后端和异步 Gray pointer 同步链抽取为可替换边界。该节仍为
+spec 草案，等待 `TASKS.json.open_questions` 中 `Q002/Q003` 确认后才能进入 RTL/DV
+实现。
+
+拟新增 RTL 边界：
+
+- `rtl/fifo_sync_1r1w_mem.sv`: `fifo_sync_mem` 内部使用的单时钟 1R1W memory wrapper。
+- `rtl/fifo_async_1r1w_mem.sv`: `fifo_async_mem` 内部使用的双时钟 1R1W memory wrapper。
+- `rtl/fifo_cdc_sync.sv`: `fifo_async_reg` 和 `fifo_async_mem` 内部使用的 Gray pointer sync module。
+
+草案保持不变的外部语义：
+
+- 四个 FIFO 顶层端口不变。
+- `overflow/underrun` 仍是单周期 pulse。
+- `pop_data` reset 后为 `0`，无合法读取时保持。
+- 同步 `FALL_THROUGH` 和满时 `push && pop` 替换语义不变。
+- 异步 FIFO 仍不支持 fall-through，`wr_level/rd_level` 仍是本地域保守观测值。
+
+memory wrapper 草案 contract：
+
+- wrapper 负责对 FIFO 侧提供稳定 `rd_data`，reset 后输出为 `0`。
+- 合法读后 `rd_data` 更新，无合法读时保持最近有效输出。
+- vendor memory macro 的读延迟、同地址读写模式和 reset 能力若不同，必须通过 adapter
+  满足 FIFO 侧 contract。
+- 若 vendor memory macro 无法通过 adapter 维持当前 `pop_data` 时序，必须另走
+  change-control，T009 不静默改变 FIFO 外部语义。
+
+CDC sync 草案 contract：
+
+- `fifo_cdc_sync` 参数化 `WIDTH` 和 `STAGES`，`STAGES >= 2`。
+- sync module 使用目标域 `clk/rst_n`，reset 后输出为 `0`。
+- 抽取 sync module 不改变现有 alignment、保守 level、full/empty 或错误 pulse 行为。
 
 ## 设计限制
 

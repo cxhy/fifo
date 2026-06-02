@@ -1,7 +1,7 @@
 # FIFO 公共组件设计规格
 
 **状态**: draft
-**日期**: 2026-06-01
+**日期**: 2026-06-02
 
 ## 文档索引
 
@@ -143,6 +143,102 @@ module fifo_async_reg #(
 - `rd_level`: 读时钟域基于同步后的写指针和本地读指针计算。它可能比真实可读量偏小，适合生成 `rd_empty/rd_almost_empty`。
 
 跨域指针同步使用 Gray pointer 和至少两级同步器。第一阶段要求 `DEPTH` 为 2 的幂，以保持指针环和 full/empty 判断简单可靠。
+
+## T009 ASIC 替换边界草案
+
+**状态**: pending user confirmation
+
+本节是 T009 草案，目标是在不改变现有 FIFO 顶层 `push/pop` 端口和外部行为的前提下，
+抽取 ASIC 阶段可替换边界。确认前不得据此修改 RTL 或 DV 期望。
+
+### Memory Wrapper 边界
+
+`fifo_sync_mem` 和 `fifo_async_mem` 后续拟改为内部实例化可替换 memory wrapper。FIFO
+顶层端口保持不变，memory wrapper 作为 RTL 内部后端边界，用于后续 vendor memory macro
+adapter 替换。
+
+同步 memory wrapper 草案：
+
+```systemverilog
+module fifo_sync_1r1w_mem #(
+    parameter int DATA_WIDTH = 32,
+    parameter int DEPTH = 16,
+    parameter int ADDR_WIDTH = (DEPTH <= 1) ? 1 : $clog2(DEPTH)
+) (
+    input  logic                         clk,
+    input  logic                         rst_n,
+    input  logic                         wr_en,
+    input  logic [ADDR_WIDTH-1:0]        wr_addr,
+    input  logic [DATA_WIDTH-1:0]        wr_data,
+    input  logic                         rd_en,
+    input  logic [ADDR_WIDTH-1:0]        rd_addr,
+    output logic [DATA_WIDTH-1:0]        rd_data
+);
+```
+
+异步 memory wrapper 草案：
+
+```systemverilog
+module fifo_async_1r1w_mem #(
+    parameter int DATA_WIDTH = 32,
+    parameter int DEPTH = 16,
+    parameter int ADDR_WIDTH = (DEPTH <= 1) ? 1 : $clog2(DEPTH)
+) (
+    input  logic                         wr_clk,
+    input  logic                         wr_rst_n,
+    input  logic                         wr_en,
+    input  logic [ADDR_WIDTH-1:0]        wr_addr,
+    input  logic [DATA_WIDTH-1:0]        wr_data,
+    input  logic                         rd_clk,
+    input  logic                         rd_rst_n,
+    input  logic                         rd_en,
+    input  logic [ADDR_WIDTH-1:0]        rd_addr,
+    output logic [DATA_WIDTH-1:0]        rd_data
+);
+```
+
+草案 contract：
+
+- wrapper 对 FIFO 侧暴露 1R1W 行为；同步版本为单时钟，异步版本为写读双时钟。
+- `rd_data` 在 reset 后为 `0`，合法 `rd_en` 后更新为读取数据，无合法 `rd_en` 时保持最近有效输出。
+- 同步 FIFO 的 `fall-through` 仍由 FIFO 控制逻辑处理，不通过 memory wrapper 读出空队列数据。
+- 同步满状态 `push && pop` 仍读出旧队首并写入新队尾，不触发 `overflow`。
+- vendor memory macro 如果读延迟、reset 能力或同地址读写模式不同，必须通过 wrapper adapter
+  满足上述 FIFO 侧 contract；本仓库第一版不实例化具体 vendor macro。
+- vendor memory macro 如果无法通过 adapter 维持当前 `pop_data` 时序，必须另走
+  change-control；T009 不允许静默改变 FIFO 外部语义。
+
+待确认问题见 `TASKS.json.open_questions.Q002`。
+
+### CDC Sync Module 边界
+
+`fifo_async_reg` 和 `fifo_async_mem` 后续拟将 Gray pointer 两级同步链抽取为独立
+sync module，便于 ASIC 阶段替换为专用 synchronizer cell wrapper。
+
+sync module 草案：
+
+```systemverilog
+module fifo_cdc_sync #(
+    parameter int WIDTH = 1,
+    parameter int STAGES = 2
+) (
+    input  logic             clk,
+    input  logic             rst_n,
+    input  logic [WIDTH-1:0] async_i,
+    output logic [WIDTH-1:0] sync_o
+);
+```
+
+草案 contract：
+
+- `STAGES` 必须大于等于 2，默认 2。
+- `clk/rst_n` 属于目标时钟域；reset 后 `sync_o == 0`。
+- sync module 只同步 Gray pointer 向量，不承担 Gray/binary 转换、full/empty 判定或 level 计算。
+- 抽取后必须保持现有 alignment 行为：reset 释放后本地域指针对齐到同步后的远端 Gray pointer，
+  alignment 期间 suppress 对应 `overflow/underrun`，并保持保守状态输出。
+- `wr_level/rd_level` 继续是各自时钟域保守观测值，不提供全局瞬时精确占用。
+
+待确认问题见 `TASKS.json.open_questions.Q003`。
 
 ## RTL 实现复核说明
 

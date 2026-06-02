@@ -1,9 +1,9 @@
 # FIFO 验证计划
 
 **状态**: implemented
-**日期**: 2026-06-01
+**日期**: 2026-06-02
 **角色**: fifo-dv-verifier
-**覆盖任务**: T002, T003, T004, T005, T008
+**覆盖任务**: T002, T003, T004, T005, T008, T009(spec draft)
 
 ## 验证目标
 
@@ -148,6 +148,8 @@ triage 分类为 RTL bug，已由 RTL agent 修复 `fifo_sync_reg` 和 `fifo_syn
 
 ## 当前覆盖缺口与后续建议
 
+- T009 已进入 spec 草案阶段，新增 memory wrapper 和 CDC sync module 的验证计划尚未实现；
+  需等待 `Q002/Q003` 确认后再修改 DV。
 - 参数矩阵已扩展到 `DATA_WIDTH=1/8/17`、`DEPTH=1/2/4/8`。后续可继续增加更大深度、
   更宽数据宽度和更多 level 编码组合。
 - 非 2 次幂深度已有 `DEPTH=3` 负向路径覆盖。后续可扩展更多非法参数组合，例如
@@ -157,3 +159,31 @@ triage 分类为 RTL bug，已由 RTL agent 修复 `fifo_sync_reg` 和 `fifo_syn
 - 当前随机压力较少。建议在现有定向测试通过后加入 seed 可复现随机序列，并保留 scoreboard 独立期望。
 - CDC 结构本身未做静态 CDC 检查；当前只从端口行为和跨域保守状态验证，建议后续配合 lint/CDC 工具或结构性检查。
 - 尚未验证 reset 与有效交易同周期释放/拉低的更多边界组合。建议补充 reset 交错、局部 reset 后残留数据处理和 reset 后重新填充的定向用例。
+
+## T009 计划验证项
+
+T009 目标是在不改变 FIFO 顶层端口和外部行为的前提下，抽取 ASIC 可替换边界。确认前
+DV 不修改 scoreboard 或测试期望。
+
+计划覆盖：
+
+- `V_MEM_IF_001`: `fifo_sync_mem` 使用 `fifo_sync_1r1w_mem` 后，复用现有参数矩阵，
+  覆盖 fall-through、满时替换、同地址读写、reset 输出为 `0` 和输出保持。
+- `V_MEM_IF_002`: `fifo_async_mem` 使用 `fifo_async_1r1w_mem` 后，复用现有参数矩阵，
+  覆盖跨域顺序、独立 reset、读写冲突、overflow/underrun 和输出保持。
+- `V_CDC_SYNC_001`: `fifo_async_reg` 和 `fifo_async_mem` 使用 `fifo_cdc_sync` 后，
+  复用异步参数矩阵，覆盖 reset 后 alignment、wraparound CDC、保守 `wr_level/rd_level`
+  和水线状态。
+- `V_ASIC_BOUNDARY_001`: `make lint` 和相关 `scripts/run_fifo_*.sh` 必须包含新增 RTL
+  文件，避免 Verilator 只编译顶层单文件导致实例缺失。
+
+确认后建议最窄验证顺序：
+
+```text
+jq empty TASKS.json
+make lint
+bash scripts/run_fifo_sync_mem.sh
+bash scripts/run_fifo_async_reg.sh
+bash scripts/run_fifo_async_mem.sh
+make verilator
+```

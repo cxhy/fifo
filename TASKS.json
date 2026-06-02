@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "project": "fifo",
-  "updated": "2026-06-01",
+  "updated": "2026-06-02",
   "task_policy": {
     "source_of_truth": "TASKS.json",
     "language": "zh-CN",
@@ -127,7 +127,36 @@
       "summary": "每推进一个有意义的设计、RTL、DV 或流程节点后，立即在 FIFO 子项目仓库中创建聚焦 commit。"
     }
   ],
-  "open_questions": [],
+  "open_questions": [
+    {
+      "id": "Q002",
+      "task_id": "T009",
+      "title": "memory wrapper 替换边界时序",
+      "status": "pending_user_confirmation",
+      "question": "是否确认 memory 类型 FIFO 的顶层 push/pop 接口和现有 pop_data 时序不变，由新增 memory wrapper/adapter 承担 vendor memory 的读延迟、输出保持和 reset 适配？",
+      "impact": [
+        "architecture",
+        "timing_assumptions",
+        "reset_semantics",
+        "verification_criteria"
+      ],
+      "default_proposal": "确认：fifo_sync_mem/fifo_async_mem 顶层接口不新增 memory 端口；内部 wrapper 暴露可替换 1R1W memory contract，wrapper 输出在合法读时更新并在无合法读时保持，复位后读数据输出为 0。vendor macro 替换时必须通过 adapter 满足该 contract；若某个 macro 无法维持现有 pop_data 时序，必须另走 change-control，不能在 T009 中静默改变 FIFO 外部语义。"
+    },
+    {
+      "id": "Q003",
+      "task_id": "T009",
+      "title": "CDC sync module 替换边界 reset 和级数",
+      "status": "pending_user_confirmation",
+      "question": "是否确认 Gray pointer 同步器抽取为参数化 sync module，默认 STAGES=2 且目标域低有效 reset 将同步输出复位为 0，现有 alignment 语义保持不变？",
+      "impact": [
+        "architecture",
+        "reset_semantics",
+        "timing_assumptions",
+        "verification_criteria"
+      ],
+      "default_proposal": "确认：新增 fifo_cdc_sync 只同步 Gray pointer 向量，不改变 bin/gray 转换、alignment、wr_level/rd_level 保守语义或 full/empty 判定；ASIC 可用等价 synchronizer cell wrapper 替换该模块。"
+    }
+  ],
   "workflow_control": {
     "spec_freeze_rule": "接口、参数、状态语义、错误语义、reset 语义、时序假设和验证准则经用户确认后视为 frozen；后续改变必须走 change-control。",
     "change_control": {
@@ -141,7 +170,37 @@
         "verification_criteria",
         "user_visible_result"
       ],
-      "records": []
+      "records": [
+        {
+          "id": "CCR_T009_001",
+          "task_id": "T009",
+          "requester": "user",
+          "date": "2026-06-02",
+          "status": "draft_pending_user_confirmation",
+          "reason": "为后续 ASIC 流程抽取可替换 memory macro 边界和 CDC synchronizer 边界。",
+          "affected_spec_ids": [
+            "S_IF_001",
+            "S_RESET_001",
+            "S_TIMING_001"
+          ],
+          "affected_feature_ids": [
+            "F_SYNC_MEM_001",
+            "F_ASYNC_MEM_001",
+            "F_ASYNC_002"
+          ],
+          "affected_verification_ids": [
+            "V_SYNC_MEM_001",
+            "V_ASYNC_MEM_001",
+            "V_ASYNC_002"
+          ],
+          "rtl_impact": "新增可替换 memory wrapper RTL 和 CDC sync RTL；更新 fifo_sync_mem/fifo_async_mem/fifo_async_reg 内部实例化；不改变四个 FIFO 顶层端口或外部行为。",
+          "dv_impact": "更新 Verilator 输入文件列表和定向检查，复用原有 FIFO 行为矩阵，增加 wrapper/sync 边界覆盖。",
+          "confirmation_required": [
+            "Q002",
+            "Q003"
+          ]
+        }
+      ]
     },
     "status_model": [
       "spec_draft",
@@ -218,6 +277,18 @@
       "title": "时序假设",
       "status": "frozen",
       "summary": "同步 FIFO 使用单时钟；异步 FIFO 使用独立写读时钟、Gray pointer 和至少两级跨域同步。"
+    },
+    {
+      "id": "S_ASIC_MEM_001",
+      "title": "memory macro 替换边界",
+      "status": "draft_pending_user_confirmation",
+      "summary": "memory 类型 FIFO 的顶层 push/pop 接口和外部行为保持不变；内部通过可替换 1R1W memory wrapper 暴露 ASIC macro adapter contract，vendor macro 必须由 adapter 满足该 contract。"
+    },
+    {
+      "id": "S_ASIC_SYNC_001",
+      "title": "CDC synchronizer 替换边界",
+      "status": "draft_pending_user_confirmation",
+      "summary": "异步 FIFO 的 Gray pointer 跨域同步链抽取为参数化 sync module；默认至少两级同步，目标域低有效 reset，保持现有 alignment 和保守 level 语义。"
     }
   ],
   "features": [
@@ -485,6 +556,98 @@
       "status": "implemented"
     },
     {
+      "id": "F_MEM_IF_001",
+      "title": "同步 FIFO 可替换 1R1W memory wrapper",
+      "priority": "P0",
+      "depends_on": [
+        "S_ASIC_MEM_001",
+        "F_SYNC_MEM_001"
+      ],
+      "modules": [
+        "fifo_sync_mem"
+      ],
+      "in_current_iteration": true,
+      "status": "spec_draft"
+    },
+    {
+      "id": "F_MEM_IF_002",
+      "title": "异步 FIFO 可替换双时钟 1R1W memory wrapper",
+      "priority": "P0",
+      "depends_on": [
+        "S_ASIC_MEM_001",
+        "F_ASYNC_MEM_001"
+      ],
+      "modules": [
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": true,
+      "status": "spec_draft"
+    },
+    {
+      "id": "F_MEM_IF_003",
+      "title": "memory wrapper contract 明确读写、reset、输出保持和冲突语义",
+      "priority": "P0",
+      "depends_on": [
+        "S_ASIC_MEM_001",
+        "S_RESET_001",
+        "S_TIMING_001"
+      ],
+      "modules": [
+        "fifo_sync_mem",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": true,
+      "status": "spec_draft"
+    },
+    {
+      "id": "F_CDC_SYNC_001",
+      "title": "参数化 Gray pointer sync module",
+      "priority": "P0",
+      "depends_on": [
+        "S_ASIC_SYNC_001",
+        "S_TIMING_001"
+      ],
+      "modules": [
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": true,
+      "status": "spec_draft"
+    },
+    {
+      "id": "F_CDC_SYNC_002",
+      "title": "异步 FIFO 使用 sync module 保持现有 CDC 状态语义",
+      "priority": "P0",
+      "depends_on": [
+        "F_CDC_SYNC_001",
+        "F_ASYNC_002",
+        "F_ASYNC_005"
+      ],
+      "modules": [
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": true,
+      "status": "spec_draft"
+    },
+    {
+      "id": "F_ASIC_SWAP_001",
+      "title": "ASIC 替换边界文档化",
+      "priority": "P1",
+      "depends_on": [
+        "S_ASIC_MEM_001",
+        "S_ASIC_SYNC_001"
+      ],
+      "modules": [
+        "fifo_sync_mem",
+        "fifo_async_reg",
+        "fifo_async_mem",
+        "docs"
+      ],
+      "in_current_iteration": true,
+      "status": "spec_draft"
+    },
+    {
       "id": "F_PROCESS_001",
       "title": "三 Agent 写入范围隔离和 architect 调度",
       "priority": "P0",
@@ -494,7 +657,7 @@
       "modules": [
         "process"
       ],
-      "in_current_iteration": true,
+      "in_current_iteration": false,
       "status": "implemented"
     },
     {
@@ -507,7 +670,7 @@
       "modules": [
         "process"
       ],
-      "in_current_iteration": true,
+      "in_current_iteration": false,
       "status": "implemented"
     },
     {
@@ -520,7 +683,7 @@
       "modules": [
         "process"
       ],
-      "in_current_iteration": true,
+      "in_current_iteration": false,
       "status": "implemented"
     }
   ],
@@ -559,6 +722,27 @@
       "title": "fifo_async_mem RTL",
       "files": [
         "rtl/fifo_async_mem.sv"
+      ]
+    },
+    {
+      "id": "DI_SYNC_MEM_WRAPPER_RTL",
+      "title": "同步 1R1W memory wrapper RTL",
+      "files": [
+        "rtl/fifo_sync_1r1w_mem.sv"
+      ]
+    },
+    {
+      "id": "DI_ASYNC_MEM_WRAPPER_RTL",
+      "title": "异步双时钟 1R1W memory wrapper RTL",
+      "files": [
+        "rtl/fifo_async_1r1w_mem.sv"
+      ]
+    },
+    {
+      "id": "DI_CDC_SYNC_RTL",
+      "title": "Gray pointer CDC sync RTL",
+      "files": [
+        "rtl/fifo_cdc_sync.sv"
       ]
     },
     {
@@ -719,6 +903,48 @@
       ],
       "priority": "P0",
       "status": "covered"
+    },
+    {
+      "id": "V_MEM_IF_001",
+      "title": "同步 memory wrapper 外部行为无回归",
+      "feature_ids": [
+        "F_MEM_IF_001",
+        "F_MEM_IF_003"
+      ],
+      "priority": "P0",
+      "status": "planned"
+    },
+    {
+      "id": "V_MEM_IF_002",
+      "title": "异步 memory wrapper 外部行为无回归",
+      "feature_ids": [
+        "F_MEM_IF_002",
+        "F_MEM_IF_003"
+      ],
+      "priority": "P0",
+      "status": "planned"
+    },
+    {
+      "id": "V_CDC_SYNC_001",
+      "title": "sync module 替换后异步 CDC 语义无回归",
+      "feature_ids": [
+        "F_CDC_SYNC_001",
+        "F_CDC_SYNC_002"
+      ],
+      "priority": "P0",
+      "status": "planned"
+    },
+    {
+      "id": "V_ASIC_BOUNDARY_001",
+      "title": "ASIC 替换边界 lint、脚本和文档覆盖",
+      "feature_ids": [
+        "F_ASIC_SWAP_001",
+        "F_MEM_IF_001",
+        "F_MEM_IF_002",
+        "F_CDC_SYNC_001"
+      ],
+      "priority": "P1",
+      "status": "planned"
     },
     {
       "id": "V_PROCESS_001",
@@ -1001,6 +1227,125 @@
       "result": "PASS in make verilator on 2026-06-01"
     },
     {
+      "id": "TR_T009_SYNC_MEM_WRAPPER",
+      "spec_ids": [
+        "S_ASIC_MEM_001",
+        "S_IF_001",
+        "S_RESET_001",
+        "S_TIMING_001"
+      ],
+      "feature_ids": [
+        "F_MEM_IF_001",
+        "F_MEM_IF_003"
+      ],
+      "design_item_ids": [
+        "DI_SYNC_MEM_RTL",
+        "DI_SYNC_MEM_WRAPPER_RTL",
+        "DI_DV_PLAN"
+      ],
+      "verification_point_ids": [
+        "V_MEM_IF_001"
+      ],
+      "test_cases": [
+        "scripts/run_fifo_sync_mem.sh::existing_parameter_matrix",
+        "dv/fifo_sync_mem/tb_fifo_sync_mem.cpp::same_address",
+        "dv/fifo_sync_mem/tb_fifo_sync_mem.cpp::full_push_pop_replace",
+        "dv/fifo_sync_mem/tb_fifo_sync_mem.cpp::fall_through",
+        "make lint::fifo_sync_mem_with_wrapper"
+      ],
+      "result": "PLANNED: pending user confirmation for Q002 before RTL/DV dispatch"
+    },
+    {
+      "id": "TR_T009_ASYNC_MEM_WRAPPER",
+      "spec_ids": [
+        "S_ASIC_MEM_001",
+        "S_IF_001",
+        "S_RESET_001",
+        "S_TIMING_001"
+      ],
+      "feature_ids": [
+        "F_MEM_IF_002",
+        "F_MEM_IF_003"
+      ],
+      "design_item_ids": [
+        "DI_ASYNC_MEM_RTL",
+        "DI_ASYNC_MEM_WRAPPER_RTL",
+        "DI_DV_PLAN"
+      ],
+      "verification_point_ids": [
+        "V_MEM_IF_002"
+      ],
+      "test_cases": [
+        "scripts/run_fifo_async_mem.sh::existing_parameter_matrix",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::memory_conflict_and_latency",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::cross_domain_ordering",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::reset_and_output_hold",
+        "make lint::fifo_async_mem_with_wrapper"
+      ],
+      "result": "PLANNED: pending user confirmation for Q002 before RTL/DV dispatch"
+    },
+    {
+      "id": "TR_T009_CDC_SYNC_MODULE",
+      "spec_ids": [
+        "S_ASIC_SYNC_001",
+        "S_TIMING_001",
+        "S_STATE_001",
+        "S_RESET_001"
+      ],
+      "feature_ids": [
+        "F_CDC_SYNC_001",
+        "F_CDC_SYNC_002",
+        "F_ASYNC_002",
+        "F_ASYNC_005"
+      ],
+      "design_item_ids": [
+        "DI_ASYNC_REG_RTL",
+        "DI_ASYNC_MEM_RTL",
+        "DI_CDC_SYNC_RTL",
+        "DI_DV_PLAN"
+      ],
+      "verification_point_ids": [
+        "V_CDC_SYNC_001",
+        "V_ASYNC_002",
+        "V_ASYNC_003"
+      ],
+      "test_cases": [
+        "scripts/run_fifo_async_reg.sh::existing_parameter_matrix",
+        "scripts/run_fifo_async_mem.sh::existing_parameter_matrix",
+        "dv/fifo_async_reg/tb_fifo_async_reg.cpp::wraparound_cdc_sequence",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::memory_conflict_and_latency",
+        "make lint::fifo_cdc_sync"
+      ],
+      "result": "PLANNED: pending user confirmation for Q003 before RTL/DV dispatch"
+    },
+    {
+      "id": "TR_T009_ASIC_BOUNDARY_DOC",
+      "spec_ids": [
+        "S_ASIC_MEM_001",
+        "S_ASIC_SYNC_001"
+      ],
+      "feature_ids": [
+        "F_ASIC_SWAP_001"
+      ],
+      "design_item_ids": [
+        "DI_DOC_SPEC",
+        "DI_DV_PLAN",
+        "DI_SYNC_MEM_WRAPPER_RTL",
+        "DI_ASYNC_MEM_WRAPPER_RTL",
+        "DI_CDC_SYNC_RTL"
+      ],
+      "verification_point_ids": [
+        "V_ASIC_BOUNDARY_001"
+      ],
+      "test_cases": [
+        "manual review of docs/fifo-common-design.md::ASIC replacement boundary",
+        "manual review of docs/fifo-verification-plan.md::T009 coverage",
+        "make lint",
+        "make verilator"
+      ],
+      "result": "PLANNED: documentation and validation pending user-confirmed spec"
+    },
+    {
       "id": "TR_PROCESS_WORKFLOW",
       "spec_ids": [
         "S_SCOPE_001"
@@ -1192,6 +1537,44 @@
         "bash scripts/run_fifo_async_mem.sh: PASS, positive_matrix=12/12, negative_cases=3/3"
       ],
       "commit": "62b6535"
+    },
+    {
+      "id": "I005",
+      "title": "T009 ASIC 替换边界 spec 草案",
+      "task_ids": [
+        "T009"
+      ],
+      "feature_scope": [
+        "F_MEM_IF_001",
+        "F_MEM_IF_002",
+        "F_MEM_IF_003",
+        "F_CDC_SYNC_001",
+        "F_CDC_SYNC_002",
+        "F_ASIC_SWAP_001"
+      ],
+      "verification_scope": [
+        "V_MEM_IF_001",
+        "V_MEM_IF_002",
+        "V_CDC_SYNC_001",
+        "V_ASIC_BOUNDARY_001"
+      ],
+      "owner": "fifo-architect",
+      "rtl_owner": "fifo-rtl-designer",
+      "dv_owner": "fifo-dv-verifier",
+      "write_scope": [
+        "TASKS.json",
+        "docs/fifo-common-design.md",
+        "docs/fifo-design-guide.md",
+        "docs/fifo-verification-plan.md",
+        "memory/project-status.md",
+        "memory/decisions.md"
+      ],
+      "status": "spec_draft",
+      "acceptance": "T009 spec 草案记录 memory wrapper 与 CDC sync module 的接口、参数、reset 语义、读写时序假设、同地址读写约束、非目标、验证点和 traceability；Q002/Q003 等影响架构和时序的问题等待用户确认后才进入 RTL/DV 分派。",
+      "validation": [
+        "jq empty TASKS.json: PASS on 2026-06-02"
+      ],
+      "commit": "this focused commit"
     }
   ],
   "validation": {
@@ -1208,15 +1591,11 @@
       "source": "T008"
     },
     "current_iteration": {
-      "id": "I004",
+      "id": "I005",
       "commands": [
-        "make lint",
-        "bash scripts/run_fifo_sync_reg.sh",
-        "bash scripts/run_fifo_sync_mem.sh",
-        "bash scripts/run_fifo_async_reg.sh",
-        "bash scripts/run_fifo_async_mem.sh"
+        "jq empty TASKS.json"
       ],
-      "result": "PASS"
+      "result": "PASS for JSON structure; spec draft awaiting user confirmation for Q002/Q003"
     },
     "coverage_review": {
       "status": "pass_with_known_gaps",
@@ -1273,6 +1652,7 @@
       "features": [
         "与 fifo_sync_reg 相同端口和外部语义",
         "memory array 存储",
+        "T009 草案：可替换同步 1R1W memory wrapper",
         "同步读写控制",
         "端口水线配置",
         "单周期 overflow/underrun pulse",
@@ -1281,12 +1661,14 @@
       "constraints": [
         "外部行为必须对齐 fifo_sync_reg",
         "memory 读延迟与 fall-through 组合必须明确",
+        "T009 草案：vendor memory macro 必须通过 wrapper/adapter 满足 FIFO 侧读数据 reset、更新和保持 contract",
         "错误请求不能写坏 memory 内容",
         "DEPTH 必须为 2 的幂"
       ],
       "verification": [
         "复用 fifo_sync_reg 行为测试",
         "memory 读写同地址场景",
+        "T009 计划：memory wrapper 后原同步矩阵无回归",
         "满时替换",
         "空时透传",
         "复位后 pop_data 为 0",
@@ -1302,6 +1684,7 @@
         "register array 存储",
         "独立 wr_rst_n 和 rd_rst_n",
         "Gray pointer 跨域同步",
+        "T009 草案：Gray pointer 同步链抽取为可替换 sync module",
         "wr_full/wr_level/wr_almost_full 写域状态",
         "rd_empty/rd_level/rd_almost_empty 读域状态",
         "写域 overflow pulse",
@@ -1312,6 +1695,7 @@
         "不支持 fall-through",
         "不提供全局瞬时精确 level",
         "跨域指针至少两级同步",
+        "T009 草案：sync module 必须保持现有 alignment 和保守 level 语义",
         "写侧水线配置只在写域使用",
         "读侧水线配置只在读域使用"
       ],
@@ -1320,6 +1704,7 @@
         "独立 reset",
         "写满和读空",
         "跨域顺序保持",
+        "T009 计划：sync module 后异步 CDC 矩阵无回归",
         "写域 overflow pulse",
         "读域 underrun pulse",
         "复位后 pop_data 为 0",
@@ -1333,6 +1718,8 @@
       "features": [
         "与 fifo_async_reg 相同端口和外部语义",
         "memory array 存储",
+        "T009 草案：可替换双时钟 1R1W memory wrapper",
+        "T009 草案：Gray pointer 同步链抽取为可替换 sync module",
         "异步跨域读写",
         "Gray pointer 跨域同步",
         "写域和读域独立状态观测",
@@ -1343,6 +1730,8 @@
       "constraints": [
         "外部行为必须对齐 fifo_async_reg",
         "memory 读写端口模型必须可综合并可由 Verilator 验证",
+        "T009 草案：vendor memory macro 必须通过 wrapper/adapter 满足 FIFO 侧读数据 reset、更新和保持 contract",
+        "T009 草案：sync module 必须保持现有 alignment 和保守 level 语义",
         "不支持异步 fall-through",
         "错误请求不能破坏已存数据",
         "DEPTH 必须为 2 的幂"
@@ -1350,6 +1739,7 @@
       "verification": [
         "复用 fifo_async_reg 行为测试",
         "memory 后端读写冲突",
+        "T009 计划：memory wrapper 和 sync module 后原异步矩阵无回归",
         "跨域读延迟",
         "复位后 pop_data 为 0",
         "reset 后输出保持行为"
@@ -1621,6 +2011,90 @@
         }
       ],
       "commit": "62b6535"
+    },
+    {
+      "id": "T009",
+      "title": "抽取 ASIC 可替换 memory 和 CDC sync 边界",
+      "status": "spec_draft",
+      "owner": "fifo-architect",
+      "rtl_owner": "fifo-rtl-designer",
+      "dv_owner": "fifo-dv-verifier",
+      "change_control_id": "CCR_T009_001",
+      "feature_scope": [
+        "F_MEM_IF_001",
+        "F_MEM_IF_002",
+        "F_MEM_IF_003",
+        "F_CDC_SYNC_001",
+        "F_CDC_SYNC_002",
+        "F_ASIC_SWAP_001"
+      ],
+      "verification_scope": [
+        "V_MEM_IF_001",
+        "V_MEM_IF_002",
+        "V_CDC_SYNC_001",
+        "V_ASIC_BOUNDARY_001"
+      ],
+      "open_questions": [
+        "Q002",
+        "Q003"
+      ],
+      "dispatch": {
+        "date": "2026-06-02",
+        "architect_scope": [
+          "TASKS.json",
+          "docs/fifo-common-design.md",
+          "docs/fifo-design-guide.md",
+          "docs/fifo-verification-plan.md",
+          "memory/project-status.md",
+          "memory/decisions.md"
+        ],
+        "rtl_scope_after_confirmation": [
+          "rtl/fifo_sync_mem.sv",
+          "rtl/fifo_async_mem.sv",
+          "rtl/fifo_async_reg.sv",
+          "rtl/fifo_sync_1r1w_mem.sv",
+          "rtl/fifo_async_1r1w_mem.sv",
+          "rtl/fifo_cdc_sync.sv"
+        ],
+        "dv_scope_after_confirmation": [
+          "dv/fifo_sync_mem/",
+          "dv/fifo_async_mem/",
+          "dv/fifo_async_reg/",
+          "scripts/run_fifo_sync_mem.sh",
+          "scripts/run_fifo_async_mem.sh",
+          "scripts/run_fifo_async_reg.sh",
+          "Makefile",
+          "docs/fifo-verification-plan.md"
+        ],
+        "notes": "当前只允许 fifo-architect 起草 spec、任务和 traceability。Q002/Q003 确认前不得修改 RTL/DV。确认后 RTL agent 只实现 memory wrapper/sync module 和内部实例化；DV agent 只更新 testbench、脚本和验证计划，不修改 RTL。"
+      },
+      "spec_draft": {
+        "goals": [
+          "为 fifo_sync_mem 和 fifo_async_mem 抽取可替换 memory wrapper，便于 ASIC 阶段替换 vendor memory macro。",
+          "为 fifo_async_reg 和 fifo_async_mem 抽取 Gray pointer sync module，便于 ASIC 阶段替换专用 synchronizer 单元。",
+          "保持四个 FIFO 的顶层端口和外部 push/pop 行为不变。"
+        ],
+        "non_goals": [
+          "不实例化 vendor-specific memory macro。",
+          "不新增 AXI、ready/valid、CSR、ECC 或非 2 次幂 FIFO 支持。",
+          "不改变 overflow/underrun、pop_data reset/hold、fall-through、wr_level/rd_level 保守观测等既有语义。"
+        ],
+        "memory_wrapper_contract": [
+          "同步 wrapper 默认为单时钟 1R1W contract：clk/rst_n、wr_en/wr_addr/wr_data、rd_en/rd_addr/rd_data。",
+          "异步 wrapper 默认为双时钟 1R1W contract：wr_clk/wr_rst_n 写口，rd_clk/rd_rst_n 读口。",
+          "wrapper 对 FIFO 暴露的 rd_data 在 reset 后为 0，在合法 rd_en 后更新，在无合法 rd_en 时保持最近有效输出。",
+          "同地址读写行为由 wrapper contract 固化为 FIFO 现有外部行为可验证的结果；vendor macro 若语义不同，必须通过 adapter 适配。",
+          "vendor macro 若无法维持现有 pop_data 时序，必须另走 change-control，不能在 T009 中静默改变 FIFO 外部语义。"
+        ],
+        "cdc_sync_contract": [
+          "sync module 参数化 WIDTH 和 STAGES，STAGES 默认 2 且必须 >= 2。",
+          "sync module 使用目标时钟域 clk/rst_n；reset 后输出为 0。",
+          "sync module 仅同步 Gray pointer 向量，不改变 bin/gray 转换、alignment、wr_full/rd_empty 或 level 计算逻辑。",
+          "复位释放后的 alignment 继续 suppress 对应错误 pulse，并将本地域指针对齐到同步后的远端 Gray pointer。"
+        ]
+      },
+      "acceptance": "用户确认 Q002/Q003 后，RTL/DV 可分离分派；新增 wrapper/sync module 通过 lint 和原有相关 FIFO 参数矩阵；traceability、文档、memory 和验证结果更新；完成后创建聚焦 commit。",
+      "commit": "this focused commit"
     }
   ]
 }

@@ -63,3 +63,15 @@
 - 背景和约束: 仅靠 case pass 容易遗漏功能点覆盖；调试阶段也可能隐式改变接口或语义。流程需要把 spec -> feature -> design item -> verification item -> test/case -> result 串起来。
 - 被拒绝的替代方案: 只保留自然语言 feature/verification 列表；失败后直接让某个 agent 盲改；用仿真通过作为唯一完成标准。
 - 影响: `AGENTS.md`、`agents/fifo-architect.md` 和 `TASKS.json` 均需遵守新流程；后续任务必须记录 feature scope、verification scope、owner、写入范围、状态、验收标准、验证命令、结果和提交。
+
+## 2026-06-02: ASIC 替换边界草案
+
+- 状态: pending_confirmation
+- 决策草案: T009 拟在不改变现有 FIFO 顶层 `push/pop` 接口和外部行为的前提下，抽取
+  `fifo_sync_mem/fifo_async_mem` 的可替换 memory wrapper，以及 `fifo_async_reg/fifo_async_mem`
+  的 Gray pointer CDC sync module。
+- 背景和约束: 后续 ASIC 流程需要能将通用 RTL wrapper 替换为 vendor-provided memory macro
+  adapter 和专用 synchronizer cell wrapper；当前不能引入 vendor-specific 实例或改变已冻结行为。
+- 待确认: `TASKS.json.open_questions.Q002` 确认 memory wrapper contract；`Q003` 确认 sync module
+  reset、级数和 alignment 语义。
+- 影响: 确认前仅更新 spec、任务、traceability 和文档草案；确认后才允许分派 RTL/DV。
