@@ -216,9 +216,8 @@ rd_almost_empty = rd_level <= cfg_almost_empty_level
 
 ## T009 ASIC 替换边界草案
 
-T009 计划将当前 memory 后端和异步 Gray pointer 同步链抽取为可替换边界。该节仍为
-spec 草案，等待 `TASKS.json.open_questions` 中 `Q002/Q003` 确认后才能进入 RTL/DV
-实现。
+T009 将当前 memory 后端和异步 Gray pointer 同步链抽取为可替换边界。`Q002/Q003`
+已确认，可以进入 RTL/DV 分离实现。
 
 拟新增 RTL 边界：
 

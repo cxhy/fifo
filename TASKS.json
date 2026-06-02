@@ -132,7 +132,7 @@
       "id": "Q002",
       "task_id": "T009",
       "title": "memory wrapper 替换边界时序",
-      "status": "pending_user_confirmation",
+      "status": "confirmed",
       "question": "是否确认 memory 类型 FIFO 的顶层 push/pop 接口和现有 pop_data 时序不变，由新增 memory wrapper/adapter 承担 vendor memory 的读延迟、输出保持和 reset 适配？",
       "impact": [
         "architecture",
@@ -140,13 +140,14 @@
         "reset_semantics",
         "verification_criteria"
       ],
-      "default_proposal": "确认：fifo_sync_mem/fifo_async_mem 顶层接口不新增 memory 端口；内部 wrapper 暴露可替换 1R1W memory contract，wrapper 输出在合法读时更新并在无合法读时保持，复位后读数据输出为 0。vendor macro 替换时必须通过 adapter 满足该 contract；若某个 macro 无法维持现有 pop_data 时序，必须另走 change-control，不能在 T009 中静默改变 FIFO 外部语义。"
+      "default_proposal": "确认：fifo_sync_mem/fifo_async_mem 顶层接口不新增 memory 端口；内部 wrapper 暴露可替换 1R1W memory contract，wrapper 输出在合法读时更新并在无合法读时保持，复位后读数据输出为 0。vendor macro 替换时必须通过 adapter 满足该 contract；若某个 macro 无法维持现有 pop_data 时序，必须另走 change-control，不能在 T009 中静默改变 FIFO 外部语义。",
+      "answer": "用户确认 memory FIFO 顶层接口不变，内部例化 memory wrapper；本轮实现一个 memory wrapper 行为级模型，方便后续替换。"
     },
     {
       "id": "Q003",
       "task_id": "T009",
       "title": "CDC sync module 替换边界 reset 和级数",
-      "status": "pending_user_confirmation",
+      "status": "confirmed",
       "question": "是否确认 Gray pointer 同步器抽取为参数化 sync module，默认 STAGES=2 且目标域低有效 reset 将同步输出复位为 0，现有 alignment 语义保持不变？",
       "impact": [
         "architecture",
@@ -154,7 +155,8 @@
         "timing_assumptions",
         "verification_criteria"
       ],
-      "default_proposal": "确认：新增 fifo_cdc_sync 只同步 Gray pointer 向量，不改变 bin/gray 转换、alignment、wr_level/rd_level 保守语义或 full/empty 判定；ASIC 可用等价 synchronizer cell wrapper 替换该模块。"
+      "default_proposal": "确认：新增 fifo_cdc_sync 只同步 Gray pointer 向量，不改变 bin/gray 转换、alignment、wr_level/rd_level 保守语义或 full/empty 判定；ASIC 可用等价 synchronizer cell wrapper 替换该模块。",
+      "answer": "用户确认编写可配置同步级数的 sync module，并在异步 FIFO 内部例化。"
     }
   ],
   "workflow_control": {
@@ -176,7 +178,7 @@
           "task_id": "T009",
           "requester": "user",
           "date": "2026-06-02",
-          "status": "draft_pending_user_confirmation",
+          "status": "confirmed",
           "reason": "为后续 ASIC 流程抽取可替换 memory macro 边界和 CDC synchronizer 边界。",
           "affected_spec_ids": [
             "S_IF_001",
@@ -281,13 +283,13 @@
     {
       "id": "S_ASIC_MEM_001",
       "title": "memory macro 替换边界",
-      "status": "draft_pending_user_confirmation",
+      "status": "frozen",
       "summary": "memory 类型 FIFO 的顶层 push/pop 接口和外部行为保持不变；内部通过可替换 1R1W memory wrapper 暴露 ASIC macro adapter contract，vendor macro 必须由 adapter 满足该 contract。"
     },
     {
       "id": "S_ASIC_SYNC_001",
       "title": "CDC synchronizer 替换边界",
-      "status": "draft_pending_user_confirmation",
+      "status": "frozen",
       "summary": "异步 FIFO 的 Gray pointer 跨域同步链抽取为参数化 sync module；默认至少两级同步，目标域低有效 reset，保持现有 alignment 和保守 level 语义。"
     }
   ],
@@ -567,7 +569,7 @@
         "fifo_sync_mem"
       ],
       "in_current_iteration": true,
-      "status": "spec_draft"
+      "status": "spec_confirmed"
     },
     {
       "id": "F_MEM_IF_002",
@@ -581,7 +583,7 @@
         "fifo_async_mem"
       ],
       "in_current_iteration": true,
-      "status": "spec_draft"
+      "status": "spec_confirmed"
     },
     {
       "id": "F_MEM_IF_003",
@@ -597,7 +599,7 @@
         "fifo_async_mem"
       ],
       "in_current_iteration": true,
-      "status": "spec_draft"
+      "status": "spec_confirmed"
     },
     {
       "id": "F_CDC_SYNC_001",
@@ -612,7 +614,7 @@
         "fifo_async_mem"
       ],
       "in_current_iteration": true,
-      "status": "spec_draft"
+      "status": "spec_confirmed"
     },
     {
       "id": "F_CDC_SYNC_002",
@@ -628,7 +630,7 @@
         "fifo_async_mem"
       ],
       "in_current_iteration": true,
-      "status": "spec_draft"
+      "status": "spec_confirmed"
     },
     {
       "id": "F_ASIC_SWAP_001",
@@ -645,7 +647,7 @@
         "docs"
       ],
       "in_current_iteration": true,
-      "status": "spec_draft"
+      "status": "spec_confirmed"
     },
     {
       "id": "F_PROCESS_001",
@@ -1569,8 +1571,8 @@
         "memory/project-status.md",
         "memory/decisions.md"
       ],
-      "status": "spec_draft",
-      "acceptance": "T009 spec 草案记录 memory wrapper 与 CDC sync module 的接口、参数、reset 语义、读写时序假设、同地址读写约束、非目标、验证点和 traceability；Q002/Q003 等影响架构和时序的问题等待用户确认后才进入 RTL/DV 分派。",
+      "status": "spec_confirmed",
+      "acceptance": "T009 spec 已确认：memory FIFO 顶层接口不变，内部例化 memory wrapper 行为级模型；异步 FIFO 内部例化可配置级数 sync module；RTL/DV 可分离分派。",
       "validation": [
         "jq empty TASKS.json: PASS on 2026-06-02"
       ],
@@ -1595,7 +1597,7 @@
       "commands": [
         "jq empty TASKS.json"
       ],
-      "result": "PASS for JSON structure; spec draft awaiting user confirmation for Q002/Q003"
+      "result": "PASS for JSON structure; T009 spec confirmed by user on 2026-06-02"
     },
     "coverage_review": {
       "status": "pass_with_known_gaps",
@@ -2015,7 +2017,7 @@
     {
       "id": "T009",
       "title": "抽取 ASIC 可替换 memory 和 CDC sync 边界",
-      "status": "spec_draft",
+      "status": "spec_confirmed",
       "owner": "fifo-architect",
       "rtl_owner": "fifo-rtl-designer",
       "dv_owner": "fifo-dv-verifier",
@@ -2066,7 +2068,7 @@
           "Makefile",
           "docs/fifo-verification-plan.md"
         ],
-        "notes": "当前只允许 fifo-architect 起草 spec、任务和 traceability。Q002/Q003 确认前不得修改 RTL/DV。确认后 RTL agent 只实现 memory wrapper/sync module 和内部实例化；DV agent 只更新 testbench、脚本和验证计划，不修改 RTL。"
+        "notes": "Q002/Q003 已确认。RTL agent 只实现 memory wrapper/sync module 和内部实例化；DV agent 只更新 testbench、脚本和验证计划，不修改 RTL。"
       },
       "spec_draft": {
         "goals": [

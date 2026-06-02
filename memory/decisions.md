@@ -66,12 +66,13 @@
 
 ## 2026-06-02: ASIC 替换边界草案
 
-- 状态: pending_confirmation
-- 决策草案: T009 拟在不改变现有 FIFO 顶层 `push/pop` 接口和外部行为的前提下，抽取
+- 状态: accepted
+- 决策: T009 在不改变现有 FIFO 顶层 `push/pop` 接口和外部行为的前提下，抽取
   `fifo_sync_mem/fifo_async_mem` 的可替换 memory wrapper，以及 `fifo_async_reg/fifo_async_mem`
   的 Gray pointer CDC sync module。
 - 背景和约束: 后续 ASIC 流程需要能将通用 RTL wrapper 替换为 vendor-provided memory macro
   adapter 和专用 synchronizer cell wrapper；当前不能引入 vendor-specific 实例或改变已冻结行为。
-- 待确认: `TASKS.json.open_questions.Q002` 确认 memory wrapper contract；`Q003` 确认 sync module
+- 已确认: `TASKS.json.open_questions.Q002` 确认 memory wrapper contract；`Q003` 确认 sync module
   reset、级数和 alignment 语义。
-- 影响: 确认前仅更新 spec、任务、traceability 和文档草案；确认后才允许分派 RTL/DV。
+- 影响: RTL/DV 可分离分派；后续 vendor macro 若无法满足当前 FIFO 外部语义，必须另走
+  change-control。

@@ -17,9 +17,9 @@
 - `T008` 已完成：扩展 `DATA_WIDTH=1/8/17`、`DEPTH=1/2/4/8` 参数矩阵，拆分
   almost-full / almost-empty / 非 2 次幂深度负向 case，并使用脚本级 coverage summary
   量化命中。
-- `T009` 已进入 `spec_draft`：计划抽取 `fifo_sync_mem/fifo_async_mem` 的可替换
+- `T009` 已进入 `spec_confirmed`：计划抽取 `fifo_sync_mem/fifo_async_mem` 的可替换
   memory wrapper，以及 `fifo_async_reg/fifo_async_mem` 的 Gray pointer CDC sync module。
-  当前仅更新 spec、任务、traceability 和文档草案；`Q002/Q003` 确认前不得修改 RTL/DV。
+  `Q002/Q003` 已确认，可进入 RTL/DV 分离实现。
 - `fifo-architect` 负责 `TASKS.json`、`docs/`、`memory/` 的任务状态、约束一致性和集成检查，不写 RTL/DV。
 - `fifo-rtl-designer` 负责 RTL 实现，写入范围限定为：
   - `T002`: `rtl/fifo_sync_reg.sv`
@@ -58,8 +58,8 @@
   `7495d57 fix: handle depth-one sync fifo replacement` 修复 `fifo_sync_reg` 和 `fifo_sync_mem`。
 - T008 集成时还修正了异步 reg/mem testbench 中隐含 `DEPTH=4` 的填满流程，使其按参数化
   `kDepth` 触发 full/overflow 检查。
-- T009 当前只运行 `jq empty TASKS.json` 校验 spec 草案结构；RTL/DV 回归需等用户确认
-  `Q002/Q003` 后执行。
+- T009 当前已运行 `jq empty TASKS.json` 校验 spec 结构；RTL/DV 实现后需要运行相关脚本和
+  `make lint` / `make verilator`。
 
 ## 已确认决策
 
@@ -76,12 +76,8 @@
 
 ## 当前阻塞
 
-- 当前有 T009 开放确认项：
-  - `Q002`: memory wrapper 替换边界是否确认不改变 FIFO 顶层接口，由 wrapper/adapter
-    承担 vendor memory 的读延迟、输出保持和 reset 适配。
-  - `Q003`: CDC sync module 是否确认默认 `STAGES=2`、目标域低有效 reset 输出为 0，
-    并保持现有 alignment 和保守 level 语义。
-- 第一阶段四个核心 FIFO 已完成；T009 确认后可进入 ASIC 替换边界 RTL/DV 实现。
+- 当前无待用户确认的 T009 spec 问题；`Q002/Q003` 已确认。
+- 第一阶段四个核心 FIFO 已完成；T009 正在进入 ASIC 替换边界 RTL/DV 实现。
 - 剩余覆盖建议：更大参数矩阵、系统化异步时钟比例 sweep、seed 可复现随机压力、Verilator
   line/toggle/branch coverage 或更细粒度自定义 coverage counter。
 

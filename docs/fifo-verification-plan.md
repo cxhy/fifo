@@ -148,8 +148,8 @@ triage 分类为 RTL bug，已由 RTL agent 修复 `fifo_sync_reg` 和 `fifo_syn
 
 ## 当前覆盖缺口与后续建议
 
-- T009 已进入 spec 草案阶段，新增 memory wrapper 和 CDC sync module 的验证计划尚未实现；
-  需等待 `Q002/Q003` 确认后再修改 DV。
+- T009 已确认 memory wrapper 和 CDC sync module 的规格，新增边界验证计划尚未实现；
+  本轮将按 `V_MEM_IF_001`、`V_MEM_IF_002`、`V_CDC_SYNC_001` 和 `V_ASIC_BOUNDARY_001` 推进。
 - 参数矩阵已扩展到 `DATA_WIDTH=1/8/17`、`DEPTH=1/2/4/8`。后续可继续增加更大深度、
   更宽数据宽度和更多 level 编码组合。
 - 非 2 次幂深度已有 `DEPTH=3` 负向路径覆盖。后续可扩展更多非法参数组合，例如
@@ -162,8 +162,8 @@ triage 分类为 RTL bug，已由 RTL agent 修复 `fifo_sync_reg` 和 `fifo_syn
 
 ## T009 计划验证项
 
-T009 目标是在不改变 FIFO 顶层端口和外部行为的前提下，抽取 ASIC 可替换边界。确认前
-DV 不修改 scoreboard 或测试期望。
+T009 目标是在不改变 FIFO 顶层端口和外部行为的前提下，抽取 ASIC 可替换边界。DV 期望
+仍来自已确认规格，不从 RTL 实现反推。
 
 计划覆盖：
 

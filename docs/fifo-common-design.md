@@ -146,10 +146,10 @@ module fifo_async_reg #(
 
 ## T009 ASIC 替换边界草案
 
-**状态**: pending user confirmation
+**状态**: confirmed
 
-本节是 T009 草案，目标是在不改变现有 FIFO 顶层 `push/pop` 端口和外部行为的前提下，
-抽取 ASIC 阶段可替换边界。确认前不得据此修改 RTL 或 DV 期望。
+本节是 T009 已确认规格，目标是在不改变现有 FIFO 顶层 `push/pop` 端口和外部行为的前提下，
+抽取 ASIC 阶段可替换边界。
 
 ### Memory Wrapper 边界
 
@@ -208,7 +208,7 @@ module fifo_async_1r1w_mem #(
 - vendor memory macro 如果无法通过 adapter 维持当前 `pop_data` 时序，必须另走
   change-control；T009 不允许静默改变 FIFO 外部语义。
 
-待确认问题见 `TASKS.json.open_questions.Q002`。
+确认记录见 `TASKS.json.open_questions.Q002`。
 
 ### CDC Sync Module 边界
 
@@ -238,7 +238,7 @@ module fifo_cdc_sync #(
   alignment 期间 suppress 对应 `overflow/underrun`，并保持保守状态输出。
 - `wr_level/rd_level` 继续是各自时钟域保守观测值，不提供全局瞬时精确占用。
 
-待确认问题见 `TASKS.json.open_questions.Q003`。
+确认记录见 `TASKS.json.open_questions.Q003`。
 
 ## RTL 实现复核说明
 
