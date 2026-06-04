@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "project": "fifo",
-  "updated": "2026-06-02",
+  "updated": "2026-06-04",
   "task_policy": {
     "source_of_truth": "TASKS.json",
     "language": "zh-CN",
@@ -1530,7 +1530,7 @@
           "class": "rtl_bug",
           "owner": "fifo-rtl-designer",
           "resolution": "修复 fifo_sync_reg/fifo_sync_mem DEPTH<=1 指针 next_ptr 行为",
-          "commit": "7495d57"
+          "commit": "7de73ac"
         },
         {
           "failure": "fifo_async_reg DATA_WIDTH=1 DEPTH=8 等待 wr_full 失败",
@@ -1546,7 +1546,7 @@
         "bash scripts/run_fifo_async_reg.sh: PASS, positive_matrix=12/12, negative_cases=3/3",
         "bash scripts/run_fifo_async_mem.sh: PASS, positive_matrix=12/12, negative_cases=3/3"
       ],
-      "commit": "62b6535"
+      "commit": "819604d"
     },
     {
       "id": "I005",
@@ -1591,7 +1591,7 @@
         "bash scripts/run_t009_boundaries.sh: PASS structure=6/6 wrapper_contracts=2/2 cdc_sync_stage_configs=2/2 cdc_sync_illegal_configs=1/1 top_port_checks=3/3",
         "make verilator: PASS on 2026-06-02"
       ],
-      "commit": "7441341"
+      "commit": "fa0598f"
     }
   ],
   "validation": {
@@ -2006,7 +2006,7 @@
           "failure": "默认矩阵暴露 fifo_sync_reg/fifo_sync_mem DEPTH=1 满时 push && pop 替换后读出错误",
           "class": "rtl_bug",
           "owner": "fifo-rtl-designer",
-          "resolution": "提交 7495d57 修复同步 FIFO DEPTH<=1 指针 next_ptr 行为"
+          "resolution": "提交 7de73ac 修复同步 FIFO DEPTH<=1 指针 next_ptr 行为"
         },
         {
           "failure": "fifo_async_reg DATA_WIDTH=1 DEPTH=8 只写入 4 项却等待 wr_full",
@@ -2037,7 +2037,7 @@
           "result": "PASS: positive_matrix=12/12, negative_cases=3/3"
         }
       ],
-      "commit": "62b6535"
+      "commit": "819604d"
     },
     {
       "id": "T009",
@@ -2120,7 +2120,36 @@
         ]
       },
       "acceptance": "Q002/Q003 已确认；新增 wrapper/sync module 已通过 lint、原有相关 FIFO 参数矩阵、T009 边界结构检查、wrapper/sync contract 定向测试和完整 make verilator；traceability、文档、memory 和验证结果已更新；完成后创建聚焦 commit。",
-      "commit": "7441341"
+      "commit": "fa0598f"
+    },
+    {
+      "id": "T010",
+      "title": "清理 FIFO Git 身份历史",
+      "status": "done",
+      "owner": "fifo-architect",
+      "feature_scope": [],
+      "verification_scope": [],
+      "dispatch": {
+        "date": "2026-06-04",
+        "architect_scope": [
+          "TASKS.json",
+          "memory/project-status.md",
+          "memory/iterations.md"
+        ],
+        "notes": "用户要求 FIFO 子项目使用全局 Git 身份并移除旧 local 身份残留；本任务只改写 Git 元数据和项目记录，不修改 RTL/DV 行为或验证期望。"
+      },
+      "acceptance": "删除 fifo local author 覆盖配置；重写 main 提交 Author/Committer 和 annotated tag tagger 为全局 Git 配置；清理 refs/original、reflog 和本地不可达旧对象；强推 main 和 tag 后验证可达历史与对象库无旧身份字符串命中；根仓库随后更新 fifo gitlink。",
+      "validation": [
+        {
+          "command": "git log --all --format='%an <%ae> %cn <%ce>'",
+          "result": "PASS: 可达提交均使用全局 Git 身份"
+        },
+        {
+          "command": "git cat-file --batch-all-objects --batch | grep old identity",
+          "result": "PASS: 本地对象库无旧身份字符串命中"
+        }
+      ],
+      "commit": "6faed47"
     }
   ]
 }

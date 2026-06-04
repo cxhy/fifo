@@ -6,7 +6,7 @@
 ## 2026-06-01: T008 参数矩阵和覆盖量化
 
 **Trigger**: completed_task
-**Scope**: `T008`, `I004`, `TASKS.json`, `memory/project-status.md`, commits `7495d57`, `62b6535`, `8bb849d`
+**Scope**: `T008`, `I004`, `TASKS.json`, `memory/project-status.md`, commits `7de73ac`, `819604d`, `af719c5`
 **Outcome**: FIFO 四个核心模块的扩展参数矩阵和负向 case 均通过，且矩阵暴露并修复了一个同步 FIFO 边界 RTL bug 和一个异步 testbench 参数化假设。
 
 ### What Worked
@@ -24,7 +24,7 @@
 ### Lessons
 
 - **Lesson**: 参数化组件应早期覆盖最小合法值、非典型宽度、边界深度和非法参数负向 case。
-  - Evidence: `T008` 矩阵暴露 `DEPTH=1` 满时 `push && pop` 替换路径 RTL bug，并由 commit `7495d57` 修复。
+  - Evidence: `T008` 矩阵暴露 `DEPTH=1` 满时 `push && pop` 替换路径 RTL bug，并由 commit `7de73ac` 修复。
   - Action: knowledge
   - Follow-up: 提升到父级 `memory/project-knowledge.md`。
 - **Lesson**: 失败 case 先分类再分派 owner，可以保护 RTL/DV 职责边界。
@@ -39,3 +39,24 @@
 ### Next Check
 
 - 下一次进入 wrapper、随机压力、异步时钟比例 sweep 或非 2 次幂 FIFO 设计前，检查是否需要把 coverage gaps 转成新的 `TASKS.json` 任务。
+
+## 2026-06-04: Git 身份历史清理
+
+**Trigger**: user_request
+**Scope**: `T010`, Git commit metadata, annotated tag `0.1`, `TASKS.json`, `memory/`
+**Outcome**: FIFO 子项目删除 local author 覆盖配置，重写 `main` 可达提交 Author/Committer
+和 annotated tag tagger 为全局 Git 配置，并准备强推子项目远端和更新父 workspace gitlink。
+
+### What Worked
+
+- 先用 `git config --show-origin` 区分全局配置和子模块 local 覆盖，避免误判提交身份来源。
+- 重写 branch 后单独检查 annotated tag，发现 tagger 不会随 commit env-filter 自动修正。
+- 强推前保留本地 `origin/main` 旧值，用于 `--force-with-lease` 防止覆盖远端新提交。
+
+### Lesson
+
+- **Lesson**: 隐私类 Git 历史清理不能只看 branch commit；annotated tag、`refs/original`、
+  reflog、本地不可达对象和父 workspace submodule gitlink 都需要纳入检查。
+  - Evidence: `0.1` tag 在 branch rewrite 后仍保留旧 tagger，必须重建 tag。
+  - Action: local_process
+  - Follow-up: 后续子项目执行相同清理时，把 tag 审计列入 preflight。

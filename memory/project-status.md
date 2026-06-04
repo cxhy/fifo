@@ -20,6 +20,8 @@
 - `T009` 已完成：`fifo_sync_mem/fifo_async_mem` 内部例化可替换 memory wrapper，
   `fifo_async_reg/fifo_async_mem` 内部例化可配置级数 Gray pointer CDC sync module；
   `Q002/Q003` 已确认并关闭。
+- `T010` 已完成：FIFO 子项目已删除 local author 覆盖配置，重写 `main` 提交
+  Author/Committer 和 annotated tag tagger 为全局 Git 配置；本轮不修改 RTL/DV 行为。
 - `fifo-architect` 负责 `TASKS.json`、`docs/`、`memory/` 的任务状态、约束一致性和集成检查，不写 RTL/DV。
 - `fifo-rtl-designer` 负责 RTL 实现，写入范围限定为：
   - `T002`: `rtl/fifo_sync_reg.sv`
@@ -57,7 +59,7 @@
   - `fifo_async_mem`: `positive_matrix=12/12`，`negative_cases=3/3`
 - 集成时修正了 `fifo_async_mem` DV reset reference：read-domain reset 后 `pop_data` 期望回到 `0`。
 - T008 初次矩阵暴露同步 FIFO `DEPTH=1` 满时 `push && pop` 替换路径 RTL bug；已由
-  `7495d57 fix: handle depth-one sync fifo replacement` 修复 `fifo_sync_reg` 和 `fifo_sync_mem`。
+  `7de73ac fix: handle depth-one sync fifo replacement` 修复 `fifo_sync_reg` 和 `fifo_sync_mem`。
 - T008 集成时还修正了异步 reg/mem testbench 中隐含 `DEPTH=4` 的填满流程，使其按参数化
   `kDepth` 触发 full/overflow 检查。
 - T009 验证结果：
@@ -87,6 +89,7 @@
 
 - 当前无待用户确认的 T009 spec 问题；`Q002/Q003` 已确认并实现完成。
 - 第一阶段四个核心 FIFO 和 T009 ASIC 替换边界均已完成。
+- Git 身份清理已完成，后续提交默认使用全局 Git 配置。
 - 剩余覆盖建议：更大参数矩阵、系统化异步时钟比例 sweep、seed 可复现随机压力、Verilator
   line/toggle/branch coverage 或更细粒度自定义 coverage counter。
 
