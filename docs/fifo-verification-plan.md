@@ -80,6 +80,9 @@ FIFO_CDC_SYNC_STAGES="3" FIFO_DATA_WIDTHS="8" FIFO_DEPTHS="4" bash scripts/run_f
 
 - 写域在 `push && !wr_full` 时接受数据入队；`push && wr_full` 期望 `overflow`。
 - 读域在 `pop && !rd_empty` 时出队并检查 `pop_data`；`pop && rd_empty` 期望 `underrun`。
+- reset/flush 定向用例由 testbench 显式标记 flush 窗口。flush/alignment 期间写侧即使
+  `push && wr_full` 也期望 `overflow == 0`，读侧即使 `pop && rd_empty` 也期望
+  `underrun == 0`；参考队列清空，reset 前未读数据不保留。
 - `wr_level` 必须在 `0..DEPTH` 内，且不低估参考队列占用，用于保守写域状态检查。
 - `rd_level` 必须在 `0..DEPTH` 内，且不高估参考队列占用，用于保守读域状态检查。
 - `wr_almost_full` 与 `wr_level >= cfg_almost_full_level` 对齐。
@@ -92,8 +95,8 @@ FIFO_CDC_SYNC_STAGES="3" FIFO_DATA_WIDTHS="8" FIFO_DEPTHS="4" bash scripts/run_f
 | --- | --- | --- |
 | `fifo_sync_reg` | `dv/fifo_sync_reg/tb_fifo_sync_reg.cpp` | reset 空状态和 `pop_data==0`；顺序写读；写满读空；overflow；underrun；无合法读取输出保持；满时 `push && pop` 替换；`FALL_THROUGH=0/1` 空时同周期 `push && pop`；almost 水线边界 |
 | `fifo_sync_mem` | `dv/fifo_sync_mem/tb_fifo_sync_mem.cpp` | 同步 FIFO 外部语义复用；memory 同地址读写/替换压力；写满读空；overflow；underrun；fall-through；reset 输出为 0；输出保持 |
-| `fifo_async_reg` | `dv/fifo_async_reg/tb_fifo_async_reg.cpp` | 独立 `wr_rst_n/rd_rst_n`；写到读跨域可见性；写满和 `overflow`；读空和 `underrun`；跨域顺序保持；wraparound/CDC 序列；保守 `wr_level/rd_level`；水线状态 |
-| `fifo_async_mem` | `dv/fifo_async_mem/tb_fifo_async_mem.cpp` | 异步 FIFO 外部语义复用；独立 reset 和输出保持；读延迟；写满读空；overflow/underrun；memory 冲突和 wraparound；跨域顺序保持；保守状态和水线状态 |
+| `fifo_async_reg` | `dv/fifo_async_reg/tb_fifo_async_reg.cpp` | 独立 `wr_rst_n/rd_rst_n`；写到读跨域可见性；写满和 `overflow`；读空和 `underrun`；跨域顺序保持；wraparound/CDC 序列；保守 `wr_level/rd_level`；水线状态；T011 reset release push blocked、单侧 reset while non-empty flush、active request during flush、post-flush reuse |
+| `fifo_async_mem` | `dv/fifo_async_mem/tb_fifo_async_mem.cpp` | 异步 FIFO 外部语义复用；独立 reset 和输出保持；读延迟；写满读空；overflow/underrun；memory 冲突和 wraparound；跨域顺序保持；保守状态和水线状态；T011 reset release push blocked、单侧 reset while non-empty flush、active request during flush、post-flush reuse |
 
 T009 边界用例：
 
@@ -183,7 +186,20 @@ make verilator PASS
 - 当前已有脚本级 coverage summary，但尚无 Verilator line/toggle/branch 覆盖率收集。建议后续打开 Verilator coverage 或补充更细粒度自定义 coverage counter，量化 full/empty/wrap/error/reset/waterline 命中。
 - 当前随机压力较少。建议在现有定向测试通过后加入 seed 可复现随机序列，并保留 scoreboard 独立期望。
 - CDC 结构本身未做静态 CDC 检查；当前只从端口行为和跨域保守状态验证，建议后续配合 lint/CDC 工具或结构性检查。
-- 尚未验证 reset 与有效交易同周期释放/拉低的更多边界组合。建议补充 reset 交错、局部 reset 后残留数据处理和 reset 后重新填充的定向用例。
+- T011 已补充 reset release push blocked、局部 reset 后残留数据 flush 和 reset 后重新填充的定向用例；reset 与有效交易同周期释放/拉低的更多相位组合仍建议后续扩展。
+
+## T011 验证项
+
+T011 目标是证明异步 FIFO 的 flush-on-any-side-reset 合同。DV 期望来自
+`S_ASYNC_RESET_001`，不从 RTL 当前行为反推。
+
+覆盖：
+
+- `V_ASYNC_RESET_001`: reset release 后 flush/alignment 期间写侧 `wr_full=1` 阻塞 `push`，
+  `overflow=0`，读侧 `rd_empty=1` 阻塞 `pop`，`underrun=0`。
+- `V_ASYNC_RESET_002`: FIFO 非空时单侧 `rd_rst_n` 或 `wr_rst_n` 拉低会清空参考队列；
+  远端观察到 reset 后进入 flush，`wr_level/rd_level` 不越界。
+- `V_ASYNC_RESET_003`: flush 结束后重新写入/读出，顺序保持；正常满/空错误 pulse 语义仍保留。
 
 ## T009 验证项
 

@@ -147,6 +147,11 @@ module fifo_async_reg #(
 
 跨域指针同步使用 Gray pointer 和至少两级同步器。第一阶段要求 `DEPTH` 为 2 的幂，以保持指针环和 full/empty 判断简单可靠。
 
+异步 FIFO 采用 flush-on-any-side-reset 语义。任一侧 reset 被本域或远端观察到后，两侧逻辑内容收敛为空；
+reset 前未读数据不保留。flush/alignment 期间写域以 `wr_full=1`、`wr_level=DEPTH` 阻塞 `push`，
+读域以 `rd_empty=1`、`rd_level=0` 阻塞 `pop`，并 suppress `overflow/underrun`。恢复后从共同 empty
+状态重新开始。
+
 ## T009 ASIC 替换边界
 
 **状态**: implemented
@@ -238,9 +243,11 @@ contract：
 - `STAGES` 必须大于等于 2，默认 2；`fifo_async_reg/fifo_async_mem` 通过
   `CDC_SYNC_STAGES` parameter 配置内部 `fifo_cdc_sync` 实例。
 - `clk/rst_n` 属于目标时钟域；reset 后同步链各级和 `sync_o` 均为 0。
-- sync module 只同步 Gray pointer 向量，不承担 Gray/binary 转换、full/empty 判定或 level 计算。
-- 抽取后必须保持现有 alignment 行为：reset 释放后本地域指针对齐到同步后的远端 Gray pointer，
-  alignment 期间 suppress 对应 `overflow/underrun`，并保持保守状态输出。
+- sync module 同步 Gray pointer 向量和 reset-done level，不承担 Gray/binary 转换、full/empty 判定、
+  reset flush 控制或 level 计算。
+- 抽取后必须保持 T011 flush-on-any-side-reset 行为：reset 释放后等待远端 reset-done 重新同步且
+  同步链稳定，本地域指针保持为 0；alignment 期间 suppress 对应 `overflow/underrun`，并保持
+  写侧 full、读侧 empty 的保守阻塞输出。
 - `wr_level/rd_level` 继续是各自时钟域保守观测值，不提供全局瞬时精确占用。
 
 确认记录见 `TASKS.json.open_questions.Q003`。
@@ -268,17 +275,19 @@ contract：
 ### 异步 Gray Pointer/CDC/Level 语义
 
 - 异步 FIFO 使用扩展二进制指针 `wr_bin/rd_bin` 和对应 Gray 指针 `wr_gray/rd_gray`。`DEPTH > 1` 时指针宽度为 `clog2(DEPTH)+1`，额外一位用于区分环绕；`DEPTH == 1` 时地址固定为 `0`。
-- 写指针 Gray 值通过 `wr_gray_rd_sync1/wr_gray_rd_sync2` 两级同步进入读域；读指针 Gray 值通过 `rd_gray_wr_sync1/rd_gray_wr_sync2` 两级同步进入写域。各域将同步后的 Gray pointer 转回 binary 后计算本地域 level。
-- 写域 `wr_level = wr_bin - rd_bin_wr_sync`，读域 `rd_level = wr_bin_rd_sync - rd_bin`。两个 level 都只表示本地域根据同步后远端指针得到的观测值，不代表跨域瞬时精确占用。
-- 写域 `wr_full` 由 `wr_level == DEPTH` 生成；读域 `rd_empty` 由 `rd_level == 0` 生成。由于远端指针经过同步链，`wr_full` 可能保守保持一段时间，`rd_empty` 也可能保守保持一段时间。
-- 每个时钟域复位释放后先进入一次 alignment 状态：本地域指针对齐到已采样的远端 Gray pointer，期间写域 suppress `overflow`，读域 suppress `underrun`，`wr_level/rd_level` 输出为 `0`，读域 `rd_empty` 保持为 `1`。
-- 异步 `push` 仅在写域 `!wr_full` 且不处于 alignment 时写 array 并推进写指针；异步 `pop` 仅在读域 `!rd_empty` 且不处于 alignment 时读取 array、更新 `pop_data` 并推进读指针。
+- 写指针 Gray 值通过 `fifo_cdc_sync` 同步进入读域；读指针 Gray 值通过 `fifo_cdc_sync` 同步进入写域。各域将同步后的 Gray pointer 转回 binary 后计算本地域 level。
+- 每个域还输出本域 reset-done level，并通过 `fifo_cdc_sync` 同步到远端。任一域本地 reset 后，或观察到远端 reset-done 为 0 后，进入 flush/alignment。
+- 写域 `wr_level = wr_bin - rd_bin_wr_sync`，读域 `rd_level = wr_bin_rd_sync - rd_bin`。两个 level 都只表示本地域根据同步后远端指针得到的观测值，不代表跨域瞬时精确占用；异常 transient 必须被保守钳位在 `0..DEPTH` 内。
+- 正常运行时写域 `wr_full` 由 `wr_level == DEPTH` 生成；读域 `rd_empty` 由 `rd_level == 0` 生成。由于远端指针经过同步链，`wr_full` 可能保守保持一段时间，`rd_empty` 也可能保守保持一段时间。
+- flush/alignment 期间本地域指针保持为 0，写域输出 `wr_full=1` 和 `wr_level=DEPTH`，读域输出 `rd_empty=1` 和 `rd_level=0`，并 suppress 对应 `overflow/underrun`。退出 flush 后两侧从共同 empty 状态重新开始。
+- 异步 `push` 仅在写域 `!wr_full` 且不处于 flush/alignment 时写 array 并推进写指针；异步 `pop` 仅在读域 `!rd_empty` 且不处于 flush/alignment 时读取 array、更新 `pop_data` 并推进读指针。
 
 ### Reset/错误/水线/Fall-Through 行为
 
 - 同步 FIFO 使用低有效 `rst_n`；异步 FIFO 使用低有效且互相独立的 `wr_rst_n` 和 `rd_rst_n`。
-- 复位后本地域指针和 level 归零；`pop_data` 在同步 FIFO 和异步读域复位后均为 `0`；`overflow/underrun` 复位为 `0`。
-- `overflow` 和 `underrun` 是寄存的单周期 pulse。同步 FIFO 中 `overflow = push && full && !pop`，`underrun = pop && empty && !(FALL_THROUGH && push)`；异步 FIFO 中 `overflow = push && wr_full`，`underrun = pop && rd_empty`。
+- 同步 FIFO 复位后指针和 level 归零；异步 FIFO 复位后进入 flush/alignment，指针归零，写侧 `wr_level=DEPTH/wr_full=1`，读侧 `rd_level=0/rd_empty=1`。
+- `pop_data` 在同步 FIFO 和异步读域复位后均为 `0`；`overflow/underrun` 复位为 `0`。
+- `overflow` 和 `underrun` 是寄存的单周期 pulse。同步 FIFO 中 `overflow = push && full && !pop`，`underrun = pop && empty && !(FALL_THROUGH && push)`；异步 FIFO 正常运行时 `overflow = push && wr_full`，`underrun = pop && rd_empty`，flush/alignment 期间二者必须保持 `0`。
 - 错误请求不会推进对应指针，也不会写坏已存数据。满时同步 `push && !pop` 不写 array；空时非法 `pop` 不更新 `pop_data`。
 - 水线输入是端口级配置，RTL 在对应时钟沿检查合法范围。`cfg_almost_full_level` 合法范围为 `1..DEPTH`，`cfg_almost_empty_level` 合法范围为 `0..DEPTH-1`；非法配置通过 assertion/fatal 暴露。
 - `almost_full` 和 `almost_empty` 是基于本地域当前观测 level 的组合输出，不额外寄存。异步版本中它们继承 `wr_level/rd_level` 的保守观测属性。

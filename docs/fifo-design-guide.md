@@ -118,6 +118,8 @@ push && (!full || (pop && !empty)) && !fall_through_read
 - 读域维护 `rd_bin/rd_gray`。
 - 写指针 Gray 值通过内部 `fifo_cdc_sync` 同步进入读域。
 - 读指针 Gray 值通过内部 `fifo_cdc_sync` 同步进入写域。
+- 写域和读域各自输出 reset-done level，并通过内部 `fifo_cdc_sync` 同步到对端，用于任一侧
+  reset 后的 flush/alignment。
 - 各域将同步后的远端 Gray 指针转回 binary 后计算本地域 level。
 
 `DEPTH > 1` 时指针宽度为 `clog2(DEPTH)+1`，额外一位用于区分环绕；
@@ -127,14 +129,14 @@ push && (!full || (pop && !empty)) && !fall_through_read
 
 ```text
 wr_level = wr_bin - rd_bin_wr_sync
-wr_full  = wr_level == DEPTH
+wr_full  = flush_active || (wr_level == DEPTH)
 ```
 
 读域状态：
 
 ```text
 rd_level = wr_bin_rd_sync - rd_bin
-rd_empty = rd_level == 0
+rd_empty = flush_active || (rd_level == 0)
 ```
 
 由于远端指针经过同步链，`wr_level` 和 `rd_level` 是保守观测值，不承诺全局瞬时精确：
@@ -142,16 +144,20 @@ rd_empty = rd_level == 0
 - `wr_level` 可能比真实占用偏大，适合写域判断 full/almost_full。
 - `rd_level` 可能比真实可读量偏小，适合读域判断 empty/almost_empty。
 
-每个时钟域复位释放后会进入一次 alignment 状态，将本地域指针对齐到已采样的远端
-Gray 指针。alignment 期间 suppress 对应错误 pulse，并输出保守空状态。
-`fifo_cdc_sync` reset 时同步链各级清 0；alignment 等待同步输出有效后完成，等待时间随
-`CDC_SYNC_STAGES` 配置增长。
+异步 FIFO 采用 flush-on-any-side-reset。每个时钟域本地 reset 后，或观察到远端 reset-done
+同步值为 0 后，会进入 flush/alignment 状态。本地域指针保持为 0，reset 前未读数据不保留。
+写域 flush/alignment 期间输出 `wr_full=1`、`wr_level=DEPTH`，读域输出 `rd_empty=1`、
+`rd_level=0`，并 suppress 对应错误 pulse。`fifo_cdc_sync` reset 时同步链各级清 0；
+flush/alignment 等待远端 reset-done 重新同步且同步链稳定后完成，等待时间随 `CDC_SYNC_STAGES`
+配置增长。
 
 ## Reset 语义
 
 - 同步 FIFO 使用低有效 `rst_n`。
 - 异步 FIFO 使用独立低有效 `wr_rst_n` 和 `rd_rst_n`。
-- 复位后指针和 level 状态归零。
+- 同步 FIFO 复位后指针和 level 状态归零。
+- 异步 FIFO 复位后进入 flush/alignment，指针归零；写侧以 `wr_full=1/wr_level=DEPTH`
+  阻塞 `push`，读侧以 `rd_empty=1/rd_level=0` 阻塞 `pop`。
 - 复位后 `pop_data == 0`。
 - 复位后 `overflow == 0`，`underrun == 0`。
 - 异步读域 reset 会将 `pop_data` 重新置 0；reset 释放后，在第一次合法读取前保持 0。
@@ -170,8 +176,9 @@ underrun = pop && empty && !(FALL_THROUGH && push)
 异步 FIFO：
 
 ```text
-overflow = push && wr_full
-underrun = pop && rd_empty
+normal: overflow = push && wr_full
+normal: underrun = pop && rd_empty
+flush/alignment: overflow = 0, underrun = 0
 ```
 
 错误请求不能破坏 FIFO 状态：

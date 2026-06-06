@@ -80,4 +80,37 @@
 - **Lesson**: reset 语义修复前必须先冻结 user-visible reset contract，尤其是是否保留 in-flight/stored data。
   - Evidence: 本轮明确拒绝“单侧 reset 后保留未读数据”，确认任一侧 reset 都 flush FIFO。
   - Action: local_process
-  - Follow-up: T011 RTL/DV 实现完成后复盘 reset/flush directed tests 是否足以覆盖 review S0。
+  - Follow-up: 已在下一节 T011 RTL/DV 重构复盘中关闭。
+
+## 2026-06-06: T011 异步 reset flush RTL/DV 重构
+
+**Trigger**: user_request
+**Scope**: `T011`, `rtl/fifo_async_reg.sv`, `rtl/fifo_async_mem.sv`,
+`dv/fifo_async_reg/`, `dv/fifo_async_mem/`, `scripts/run_fifo_async_*.sh`,
+`docs/`, `TASKS.json`, `memory/`
+**Outcome**: 异步 FIFO 已实现 flush-on-any-side-reset。单侧 reset 会经 reset-done 同步触发远端
+flush；flush/alignment 期间写侧 full 阻塞、读侧 empty 阻塞，错误 pulse 不误报；flush 后从共同
+empty 状态重新使用。默认 async 矩阵和 CDC_SYNC_STAGES=3 smoke 均通过。
+
+### What Worked
+
+- 三角色写入范围拆分有效：RTL 只改异步 RTL，DV 只改 testbench/脚本，architect 负责 TASKS、docs、memory 和集成验证。
+- reset-done level 跨域同步比单周期 reset pulse 更适合本轮合同，避免远端漏观测 reset 事件。
+- 定向 case 同时检查 reset release、单侧 reset while non-empty、active request during reset 和 post-flush reuse，比只跑普通 independent reset 更接近 review S0 风险。
+
+### Friction
+
+- DV 脚本首次新增 `CDC_SYNC_STAGES=1` 负例时复用了 non-power-of-two 宏名，后续集成阶段改为显式 `ILLEGAL_CDC_SYNC_STAGES`。
+- `DEPTH=1` 参数实例中 level clamp 的保守比较会触发 Verilator `CMPCONST` warning，需要局部 pragma 保持脚本输出干净。
+- 当前仍没有静态 CDC/RDC signoff 或 coverage DB，T011 只完成行为级 reset/flush 证明。
+
+### Lessons
+
+- **Lesson**: 异步 reset 协议应把远端 reset 观测建成可同步的 level/epoch，而不是只依赖本地 reset 后对齐远端 pointer。
+  - Evidence: T011 使用 reset-done level 跨域同步后，单侧 reset 可使两侧进入共同 flush 并从 empty 恢复。
+  - Action: local_process
+  - Follow-up: 后续 CDC/RDC signoff 时检查 reset-done 同步链约束和 reset deassertion 假设。
+- **Lesson**: reset/flush DV 需要显式建模 flush 窗口，不能直接复用正常 `push && wr_full`/`pop && rd_empty` 错误期望。
+  - Evidence: T011 flush 期间要求 `overflow/underrun == 0`，testbench 增加 `wr_flush_tick/rd_flush_tick` 专门检查。
+  - Action: knowledge
+  - Follow-up: 后续随机 reset 相位测试也应继承该 flush-window 建模。

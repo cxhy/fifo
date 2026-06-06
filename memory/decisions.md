@@ -96,6 +96,12 @@
 - 已确认: `TASKS.json.open_questions.Q004` 和 `CCR_T011_001` 记录用户确认：
   flush-on-any-side-reset、flush/alignment 期间 `wr_full/rd_empty` 阻塞、T011 只处理 reset/flush
   语义和最小 DV 证明。
+- 实现结果: `fifo_async_reg/fifo_async_mem` 增加跨域 reset-done 同步，任一侧 reset 被远端观察后
+  两侧进入 flush/alignment；flush 期间本地域 pointer/Gray 清零，写侧输出 `wr_full=1` 和
+  `wr_level=DEPTH`，读侧输出 `rd_empty=1` 和 `rd_level=0`，`overflow/underrun` 输出保持 0。
+- 验证结果: async reg/mem testbench 增加 reset release push blocked、单侧 reset while non-empty、
+  active request during reset 和 post-flush reuse 定向用例；默认 async 矩阵通过
+  `reset_flush_cases=5/5`，并新增 `CDC_SYNC_STAGES=1` 负例。
 - 影响: 后续 RTL/DV 必须围绕 `F_ASYNC_RESET_001`、`F_ASYNC_RESET_002`、
-  `V_ASYNC_RESET_001`、`V_ASYNC_RESET_002`、`V_ASYNC_RESET_003` 推进；CDC/RDC signoff、
-  coverage DB 和 vendor macro adapter 留给后续任务。
+  `V_ASYNC_RESET_001`、`V_ASYNC_RESET_002`、`V_ASYNC_RESET_003` 保持 traceability；CDC/RDC
+  signoff、coverage DB 和 vendor macro adapter 留给后续任务。

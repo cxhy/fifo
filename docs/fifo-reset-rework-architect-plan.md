@@ -1,6 +1,6 @@
 # FIFO Reset Rework Architect Plan
 
-**状态**: confirmed, ready for T011 setup
+**状态**: implemented by T011
 **日期**: 2026-06-06
 **角色**: fifo-architect
 **输入**: `docs/fifo-design-review-2026-06-06.md`
@@ -8,7 +8,7 @@
 
 ## 目标
 
-本计划用于确认 review 报告中的问题是否值得进入下一轮重构，并给出重构前的范围边界。用户已确认本计划，T011 和 change-control 已写入任务事实源；下一步才能按 FIFO 三角色流程进入 RTL/DV 实现。
+本计划用于确认 review 报告中的问题是否值得进入下一轮重构，并给出重构前的范围边界。用户已确认本计划，T011 和 change-control 已写入任务事实源；T011 已按 FIFO 三角色流程完成 RTL/DV/docs/TASKS/memory closure。
 
 核心目标是把异步 FIFO reset 语义从当前不完备的“独立 reset + 本地域 alignment”改为可验证的 reset/flush 协议：
 

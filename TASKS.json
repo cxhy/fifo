@@ -720,7 +720,7 @@
         "fifo_async_mem"
       ],
       "in_current_iteration": true,
-      "status": "planned"
+      "status": "implemented"
     },
     {
       "id": "F_ASYNC_RESET_002",
@@ -736,7 +736,7 @@
         "fifo_async_mem"
       ],
       "in_current_iteration": true,
-      "status": "planned"
+      "status": "implemented"
     },
     {
       "id": "F_PROCESS_001",
@@ -1045,7 +1045,7 @@
         "F_ASYNC_RESET_002"
       ],
       "priority": "P0",
-      "status": "planned"
+      "status": "covered"
     },
     {
       "id": "V_ASYNC_RESET_002",
@@ -1056,7 +1056,7 @@
         "F_ASYNC_005"
       ],
       "priority": "P0",
-      "status": "planned"
+      "status": "covered"
     },
     {
       "id": "V_ASYNC_RESET_003",
@@ -1067,7 +1067,7 @@
         "F_COMMON_004"
       ],
       "priority": "P0",
-      "status": "planned"
+      "status": "covered"
     },
     {
       "id": "V_PROCESS_001",
@@ -1501,14 +1501,20 @@
         "V_ASYNC_RESET_003"
       ],
       "test_cases": [
-        "planned::dv/fifo_async_reg/tb_fifo_async_reg.cpp::CASE_ASYNC_RESET_RELEASE_PUSH_BLOCKED",
-        "planned::dv/fifo_async_reg/tb_fifo_async_reg.cpp::CASE_ASYNC_RD_RESET_FLUSH_NONEMPTY",
-        "planned::dv/fifo_async_reg/tb_fifo_async_reg.cpp::CASE_ASYNC_WR_RESET_FLUSH_NONEMPTY",
-        "planned::dv/fifo_async_mem/tb_fifo_async_mem.cpp::CASE_ASYNC_RESET_RELEASE_PUSH_BLOCKED",
-        "planned::dv/fifo_async_mem/tb_fifo_async_mem.cpp::CASE_ASYNC_RD_RESET_FLUSH_NONEMPTY",
-        "planned::dv/fifo_async_mem/tb_fifo_async_mem.cpp::CASE_ASYNC_WR_RESET_FLUSH_NONEMPTY"
+        "dv/fifo_async_reg/tb_fifo_async_reg.cpp::CASE_ASYNC_RESET_RELEASE_PUSH_BLOCKED",
+        "dv/fifo_async_reg/tb_fifo_async_reg.cpp::CASE_ASYNC_RD_RESET_FLUSH_NONEMPTY",
+        "dv/fifo_async_reg/tb_fifo_async_reg.cpp::CASE_ASYNC_WR_RESET_FLUSH_NONEMPTY",
+        "dv/fifo_async_reg/tb_fifo_async_reg.cpp::CASE_ASYNC_RESET_WITH_ACTIVE_REQ",
+        "dv/fifo_async_reg/tb_fifo_async_reg.cpp::CASE_ASYNC_POST_FLUSH_REUSE",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::CASE_ASYNC_RESET_RELEASE_PUSH_BLOCKED",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::CASE_ASYNC_RD_RESET_FLUSH_NONEMPTY",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::CASE_ASYNC_WR_RESET_FLUSH_NONEMPTY",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::CASE_ASYNC_RESET_WITH_ACTIVE_REQ",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp::CASE_ASYNC_POST_FLUSH_REUSE",
+        "scripts/run_fifo_async_reg.sh::CDC_SYNC_STAGES=1 negative",
+        "scripts/run_fifo_async_mem.sh::CDC_SYNC_STAGES=1 negative"
       ],
-      "result": "PLANNED for T011; no RTL/DV implementation started at confirmation recording time."
+      "result": "PASS on 2026-06-06: async reg/mem default matrices pass with reset_flush_cases=5/5 and negative_cases=4/4; CDC_SYNC_STAGES=3 depth 1/4 smoke passes; make lint and make verilator pass."
     },
     {
       "id": "TR_PROCESS_WORKFLOW",
@@ -1779,11 +1785,65 @@
         "git tag pre-reset-rework-20260606 exists and points to review-report baseline"
       ],
       "commit": "this focused commit"
+    },
+    {
+      "id": "I007",
+      "title": "T011 异步 reset flush RTL/DV 重构",
+      "task_ids": [
+        "T011"
+      ],
+      "feature_scope": [
+        "F_ASYNC_RESET_001",
+        "F_ASYNC_RESET_002"
+      ],
+      "verification_scope": [
+        "V_ASYNC_RESET_001",
+        "V_ASYNC_RESET_002",
+        "V_ASYNC_RESET_003"
+      ],
+      "owner": "fifo-architect",
+      "rtl_owner": "fifo-rtl-designer",
+      "dv_owner": "fifo-dv-verifier",
+      "write_scope": [
+        "rtl/fifo_async_reg.sv",
+        "rtl/fifo_async_mem.sv",
+        "dv/fifo_async_reg/tb_fifo_async_reg.cpp",
+        "dv/fifo_async_mem/tb_fifo_async_mem.cpp",
+        "dv/fifo_async_reg/tb_illegal_config.cpp",
+        "dv/fifo_async_mem/tb_illegal_config.cpp",
+        "scripts/run_fifo_async_reg.sh",
+        "scripts/run_fifo_async_mem.sh",
+        "docs/fifo-common-design.md",
+        "docs/fifo-design-guide.md",
+        "docs/fifo-verification-plan.md",
+        "TASKS.json",
+        "memory/project-status.md",
+        "memory/decisions.md",
+        "memory/iterations.md"
+      ],
+      "status": "done",
+      "acceptance": "异步 FIFO 任一侧 reset 触发 flush；flush/alignment 期间 wr_full/rd_empty 阻塞且 overflow/underrun 不误报；flush 后共同 empty 并可重新使用；T011 traceability、docs 和 memory 已更新。",
+      "validation": [
+        "jq empty TASKS.json: PASS on 2026-06-06",
+        "git diff --check: PASS on 2026-06-06",
+        "make lint: PASS on 2026-06-06",
+        "bash scripts/run_fifo_async_reg.sh: PASS positive_matrix=12/12 reset_flush_cases=5/5 negative_cases=4/4",
+        "bash scripts/run_fifo_async_mem.sh: PASS positive_matrix=12/12 reset_flush_cases=5/5 negative_cases=4/4",
+        "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=8 FIFO_DEPTHS=1 async_reg/async_mem: PASS",
+        "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=8 FIFO_DEPTHS=\"1 4\" async_reg/async_mem: PASS on 2026-06-06",
+        "make verilator: PASS on 2026-06-06"
+      ],
+      "known_gaps": [
+        "静态 CDC/RDC signoff 不在 T011 范围。",
+        "Verilator line/toggle/branch coverage DB 不在 T011 范围。",
+        "随机 reset 相位和系统化异步时钟比例 sweep 留作后续增强。"
+      ],
+      "commit": "6228eed, 6ca383d, 72d55cf, this closure commit"
     }
   ],
   "validation": {
     "latest_regression": {
-      "date": "2026-06-02",
+      "date": "2026-06-06",
       "commands": [
         "make lint",
         "bash scripts/run_fifo_sync_reg.sh",
@@ -1791,18 +1851,26 @@
         "bash scripts/run_fifo_async_reg.sh",
         "bash scripts/run_fifo_async_mem.sh",
         "bash scripts/run_t009_boundaries.sh",
+        "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=\"8\" FIFO_DEPTHS=\"1 4\" bash scripts/run_fifo_async_reg.sh",
+        "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=\"8\" FIFO_DEPTHS=\"1 4\" bash scripts/run_fifo_async_mem.sh",
         "make verilator"
       ],
       "result": "PASS",
-      "source": "T009"
+      "source": "T011"
     },
     "current_iteration": {
-      "id": "I006",
+      "id": "I007",
       "commands": [
         "jq empty TASKS.json",
-        "git show --no-patch --decorate --oneline pre-reset-rework-20260606"
+        "git diff --check",
+        "make lint",
+        "bash scripts/run_fifo_async_reg.sh",
+        "bash scripts/run_fifo_async_mem.sh",
+        "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=\"8\" FIFO_DEPTHS=\"1 4\" bash scripts/run_fifo_async_reg.sh",
+        "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=\"8\" FIFO_DEPTHS=\"1 4\" bash scripts/run_fifo_async_mem.sh",
+        "make verilator"
       ],
-      "result": "PLAN_READY: T011 async reset flush semantics confirmed by user on 2026-06-06; RTL/DV rework not started in this recording step."
+      "result": "DONE: T011 async reset flush RTL/DV/docs/TASKS/memory closure PASS on 2026-06-06."
     },
     "coverage_review": {
       "status": "pass_with_known_gaps",
@@ -1813,7 +1881,9 @@
         "当前随机压力较少，尚未加入 seed 可复现随机序列。"
       ],
       "follow_up_tasks": [
-        "T011"
+        "future::static CDC/RDC signoff",
+        "future::reset phase randomized stress",
+        "future::Verilator coverage DB"
       ]
     }
   },
@@ -2336,7 +2406,7 @@
     {
       "id": "T011",
       "title": "重构异步 FIFO reset flush 语义",
-      "status": "rtl_in_progress",
+      "status": "done",
       "owner": "fifo-architect",
       "rtl_owner": "fifo-rtl-designer",
       "dv_owner": "fifo-dv-verifier",
@@ -2402,22 +2472,34 @@
       "validation": [
         {
           "command": "jq empty TASKS.json",
-          "result": "PASS on 2026-06-06 for confirmation-record commit"
+          "result": "PASS on 2026-06-06"
         },
         {
           "command": "make lint",
-          "result": "pending after RTL implementation"
+          "result": "PASS on 2026-06-06"
         },
         {
           "command": "bash scripts/run_fifo_async_reg.sh",
-          "result": "pending after RTL/DV implementation"
+          "result": "PASS on 2026-06-06: positive_matrix=12/12, reset_flush_cases=5/5, negative_cases=4/4"
         },
         {
           "command": "bash scripts/run_fifo_async_mem.sh",
-          "result": "pending after RTL/DV implementation"
+          "result": "PASS on 2026-06-06: positive_matrix=12/12, reset_flush_cases=5/5, negative_cases=4/4"
+        },
+        {
+          "command": "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=\"8\" FIFO_DEPTHS=\"1 4\" bash scripts/run_fifo_async_reg.sh",
+          "result": "PASS on 2026-06-06: positive_matrix=2/2, reset_flush_cases=5/5, negative_cases=4/4"
+        },
+        {
+          "command": "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=\"8\" FIFO_DEPTHS=\"1 4\" bash scripts/run_fifo_async_mem.sh",
+          "result": "PASS on 2026-06-06: positive_matrix=2/2, reset_flush_cases=5/5, negative_cases=4/4"
+        },
+        {
+          "command": "make verilator",
+          "result": "PASS on 2026-06-06"
         }
       ],
-      "commit": "pending"
+      "commit": "6228eed, 6ca383d, 72d55cf, this closure commit"
     }
   ]
 }
