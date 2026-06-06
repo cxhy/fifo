@@ -22,6 +22,9 @@
   `Q002/Q003` 已确认并关闭。
 - `T010` 已完成：FIFO 子项目已删除 local author 覆盖配置，重写 `main` 提交
   Author/Committer 和 annotated tag tagger 为全局 Git 配置；本轮不修改 RTL/DV 行为。
+- `T011` 已进入 `plan_ready`：用户确认异步 FIFO 采用 flush-on-any-side-reset 语义；
+  任一侧 reset 后不保留已有数据，flush/alignment 期间写侧 `wr_full=1` 阻塞 `push`、
+  读侧 `rd_empty=1` 阻塞 `pop`。本节点只记录确认和计划，尚未开始 RTL/DV 重构。
 - `fifo-architect` 负责 `TASKS.json`、`docs/`、`memory/` 的任务状态、约束一致性和集成检查，不写 RTL/DV。
 - `fifo-rtl-designer` 负责 RTL 实现，写入范围限定为：
   - `T002`: `rtl/fifo_sync_reg.sv`
@@ -84,11 +87,15 @@
 - memory 类型 FIFO 顶层端口不暴露 memory macro 接口；后续 vendor macro 必须通过 wrapper/adapter
   满足 `rd_data` reset、合法读更新和无合法读保持 contract。
 - 异步 FIFO 的 Gray pointer 同步器由内部 `fifo_cdc_sync` 承担，`CDC_SYNC_STAGES` 默认 2 且可配置。
+- 异步 FIFO T011 reset 语义已确认：任一侧 reset 触发 flush/alignment，reset 前已有数据不保留；
+  flush/alignment 期间 `wr_full/rd_empty` 对外阻塞交易，恢复后从共同 empty 状态重新开始。
 
 ## 当前阻塞
 
-- 当前无待用户确认的 T009 spec 问题；`Q002/Q003` 已确认并实现完成。
+- 当前无待用户确认的 T009/T011 spec 问题；`Q002/Q003/Q004` 已确认。
 - 第一阶段四个核心 FIFO 和 T009 ASIC 替换边界均已完成。
+- T011 尚未实现 RTL/DV；下一步应按三角色流程分派 `fifo-rtl-designer` 和
+  `fifo-dv-verifier`，实现并验证 flush-on-any-side-reset。
 - Git 身份清理已完成，后续提交默认使用全局 Git 配置。
 - 剩余覆盖建议：更大参数矩阵、系统化异步时钟比例 sweep、seed 可复现随机压力、Verilator
   line/toggle/branch coverage 或更细粒度自定义 coverage counter。

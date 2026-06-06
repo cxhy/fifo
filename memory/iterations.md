@@ -60,3 +60,24 @@
   - Evidence: `0.1` tag 在 branch rewrite 后仍保留旧 tagger，必须重建 tag。
   - Action: local_process
   - Follow-up: 后续子项目执行相同清理时，把 tag 审计列入 preflight。
+
+## 2026-06-06: T011 异步 reset flush 计划确认
+
+**Trigger**: review_followup
+**Scope**: `docs/fifo-design-review-2026-06-06.md`, `docs/fifo-reset-rework-architect-plan.md`,
+`TASKS.json`, `memory/decisions.md`, `memory/project-status.md`
+**Outcome**: 用户确认 T011 采用 flush-on-any-side-reset 语义，并确认本轮只处理 reset/flush
+语义和最小 DV 证明；CDC/RDC signoff、coverage DB、vendor macro adapter 留作后续任务。
+
+### What Worked
+
+- 先打 `pre-reset-rework-20260606` tag 固定重构前基线，再记录架构计划，避免后续 RTL/DV 修改与 review 证据混在一起。
+- 将用户确认写入 `Q004`、`CCR_T011_001`、`S_ASYNC_RESET_001`、`F_ASYNC_RESET_*`
+  和 `V_ASYNC_RESET_*`，使后续三角色实现不依赖聊天上下文。
+
+### Lesson
+
+- **Lesson**: reset 语义修复前必须先冻结 user-visible reset contract，尤其是是否保留 in-flight/stored data。
+  - Evidence: 本轮明确拒绝“单侧 reset 后保留未读数据”，确认任一侧 reset 都 flush FIFO。
+  - Action: local_process
+  - Follow-up: T011 RTL/DV 实现完成后复盘 reset/flush directed tests 是否足以覆盖 review S0。

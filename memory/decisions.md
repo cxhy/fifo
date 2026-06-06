@@ -80,3 +80,22 @@
 - 影响: 后续 vendor macro 若无法满足当前 FIFO 外部语义，必须另走 change-control。
   后续 ASIC/CDC signoff 仍需结合工艺约束处理 Gray bus skew、false path 和 synchronizer
   placement，本仓库当前只提供 RTL 结构边界和 Verilator 行为验证。
+
+## 2026-06-06: 异步 FIFO flush-on-any-side-reset
+
+- 状态: accepted
+- 决策: T011 采用 flush-on-any-side-reset 语义。异步 FIFO 任一侧 reset 被本域或远端观察到后，
+  FIFO 进入 flush/alignment；reset 前已经写入但未读出的数据不保留；flush/alignment 期间
+  写侧以 `wr_full=1` 阻塞 `push`，读侧以 `rd_empty=1` 阻塞 `pop`；恢复后从共同 empty
+  状态重新开始。
+- 背景和约束: `docs/fifo-design-review-2026-06-06.md` 发现现有异步 FIFO 在 alignment 期间
+  可见 `wr_full=0` 但实际不接收 `push`，存在静默丢数据风险；单侧远端 reset 也可能导致
+  `level` 越界并破坏 `full/empty` 判定。
+- 被拒绝的替代方案: 保留单侧 reset 后未读数据；只做 reset release 同步但不定义远端 reset
+  flush 协议；把 CDC/RDC signoff、coverage DB 和 vendor macro adapter 与本轮 reset 语义修复混做。
+- 已确认: `TASKS.json.open_questions.Q004` 和 `CCR_T011_001` 记录用户确认：
+  flush-on-any-side-reset、flush/alignment 期间 `wr_full/rd_empty` 阻塞、T011 只处理 reset/flush
+  语义和最小 DV 证明。
+- 影响: 后续 RTL/DV 必须围绕 `F_ASYNC_RESET_001`、`F_ASYNC_RESET_002`、
+  `V_ASYNC_RESET_001`、`V_ASYNC_RESET_002`、`V_ASYNC_RESET_003` 推进；CDC/RDC signoff、
+  coverage DB 和 vendor macro adapter 留给后续任务。

@@ -157,6 +157,23 @@
       ],
       "default_proposal": "确认：新增 fifo_cdc_sync 只同步 Gray pointer 向量，不改变 bin/gray 转换、alignment、wr_level/rd_level 保守语义或 full/empty 判定；ASIC 可用等价 synchronizer cell wrapper 替换该模块。",
       "answer": "用户确认编写可配置同步级数的 sync module，并在异步 FIFO 内部例化。"
+    },
+    {
+      "id": "Q004",
+      "task_id": "T011",
+      "title": "异步 FIFO 单侧 reset flush 语义",
+      "status": "confirmed",
+      "question": "是否确认异步 FIFO 采用 flush-on-any-side-reset 语义，任一侧 reset 后不保留 FIFO 中已有数据，并在 flush/alignment 期间写侧以 wr_full=1、读侧以 rd_empty=1 阻塞用户交易？",
+      "impact": [
+        "architecture",
+        "state_semantics",
+        "reset_semantics",
+        "timing_assumptions",
+        "verification_criteria",
+        "user_visible_result"
+      ],
+      "default_proposal": "确认：T011 采用 flush-on-any-side-reset。任一侧 reset 被本域或远端观察到后，异步 FIFO 进入 flush/alignment；reset 前已写入但未读出的数据不保留；flush/alignment 期间不接受 push/pop，写侧 wr_full=1，读侧 rd_empty=1，overflow/underrun 不误报；T011 只处理 reset/flush 语义和最小 DV 证明，CDC/RDC signoff、coverage DB、vendor macro adapter 留作后续任务。",
+      "answer": "用户确认三项：1) 异步 FIFO 采用 flush-on-any-side-reset，任一侧 reset 后不保留已有数据；2) flush/alignment 期间写侧以 wr_full=1 阻塞 push，读侧以 rd_empty=1 阻塞 pop；3) T011 范围只处理 reset/flush 语义和最小 DV 证明，CDC/RDC signoff、coverage DB、vendor macro adapter 留作后续任务。"
     }
   ],
   "workflow_control": {
@@ -200,6 +217,40 @@
           "confirmation_required": [
             "Q002",
             "Q003"
+          ]
+        },
+        {
+          "id": "CCR_T011_001",
+          "task_id": "T011",
+          "requester": "user",
+          "date": "2026-06-06",
+          "status": "confirmed",
+          "reason": "chip-design-review 发现异步 FIFO reset/alignment 期间可能静默丢弃 push，以及单侧远端 reset 可能导致 level 越界和 full/empty 判定失效；用户确认采用完备的 flush-on-any-side-reset 语义。",
+          "affected_spec_ids": [
+            "S_RESET_001",
+            "S_STATE_001",
+            "S_TIMING_001",
+            "S_ASYNC_RESET_001"
+          ],
+          "affected_feature_ids": [
+            "F_ASYNC_001",
+            "F_ASYNC_002",
+            "F_ASYNC_005",
+            "F_ASYNC_RESET_001",
+            "F_ASYNC_RESET_002"
+          ],
+          "affected_verification_ids": [
+            "V_ASYNC_001",
+            "V_ASYNC_002",
+            "V_ASYNC_003",
+            "V_ASYNC_RESET_001",
+            "V_ASYNC_RESET_002",
+            "V_ASYNC_RESET_003"
+          ],
+          "rtl_impact": "更新 fifo_async_reg/fifo_async_mem reset 和 alignment 控制；任一侧 reset 触发 flush/alignment，flush/alignment 期间阻塞 push/pop，恢复后从共同 empty 状态重新开始；不改变同步 FIFO 或顶层端口列表。",
+          "dv_impact": "补充 reset release 后立即 push/pop、单侧 reset while non-empty、reset 与 active request 交错、post-flush reuse 和 CDC_SYNC_STAGES=3 smoke；局部修正 async scoreboard，避免 reset/flush 语义被 DUT status 吸收。",
+          "confirmation_required": [
+            "Q004"
           ]
         }
       ]
@@ -291,6 +342,12 @@
       "title": "CDC synchronizer 替换边界",
       "status": "frozen",
       "summary": "异步 FIFO 的 Gray pointer 跨域同步链抽取为参数化 sync module；默认至少两级同步，目标域低有效 reset，保持现有 alignment 和保守 level 语义。"
+    },
+    {
+      "id": "S_ASYNC_RESET_001",
+      "title": "异步 FIFO flush-on-any-side-reset 语义",
+      "status": "frozen",
+      "summary": "异步 FIFO 任一侧 reset 被本域或远端观察到后进入 flush/alignment；reset 前已有数据不保留；flush/alignment 期间不接受 push/pop，写侧 wr_full=1 阻塞 push，读侧 rd_empty=1 阻塞 pop，overflow/underrun 不误报；恢复后从共同 empty 状态重新开始。"
     }
   ],
   "features": [
@@ -650,6 +707,38 @@
       "status": "implemented"
     },
     {
+      "id": "F_ASYNC_RESET_001",
+      "title": "异步 FIFO 任一侧 reset 触发 flush",
+      "priority": "P0",
+      "depends_on": [
+        "S_ASYNC_RESET_001",
+        "S_RESET_001",
+        "S_TIMING_001"
+      ],
+      "modules": [
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": true,
+      "status": "planned"
+    },
+    {
+      "id": "F_ASYNC_RESET_002",
+      "title": "flush/alignment 期间阻塞用户 push/pop",
+      "priority": "P0",
+      "depends_on": [
+        "S_ASYNC_RESET_001",
+        "S_STATE_001",
+        "S_ERROR_001"
+      ],
+      "modules": [
+        "fifo_async_reg",
+        "fifo_async_mem"
+      ],
+      "in_current_iteration": true,
+      "status": "planned"
+    },
+    {
       "id": "F_PROCESS_001",
       "title": "三 Agent 写入范围隔离和 architect 调度",
       "priority": "P0",
@@ -947,6 +1036,38 @@
       ],
       "priority": "P1",
       "status": "covered"
+    },
+    {
+      "id": "V_ASYNC_RESET_001",
+      "title": "reset release 后 flush/alignment 期间阻塞 push/pop",
+      "feature_ids": [
+        "F_ASYNC_RESET_001",
+        "F_ASYNC_RESET_002"
+      ],
+      "priority": "P0",
+      "status": "planned"
+    },
+    {
+      "id": "V_ASYNC_RESET_002",
+      "title": "单侧 reset while non-empty 触发 flush 且 level 不越界",
+      "feature_ids": [
+        "F_ASYNC_RESET_001",
+        "F_ASYNC_RESET_002",
+        "F_ASYNC_005"
+      ],
+      "priority": "P0",
+      "status": "planned"
+    },
+    {
+      "id": "V_ASYNC_RESET_003",
+      "title": "post-flush reuse 保持顺序和错误 pulse 语义",
+      "feature_ids": [
+        "F_ASYNC_RESET_001",
+        "F_ASYNC_001",
+        "F_COMMON_004"
+      ],
+      "priority": "P0",
+      "status": "planned"
     },
     {
       "id": "V_PROCESS_001",
@@ -1356,6 +1477,40 @@
       "result": "PASS on 2026-06-02: make lint PASS; make verilator PASS including T009 boundary checks; docs and memory updated"
     },
     {
+      "id": "TR_T011_ASYNC_RESET_FLUSH",
+      "spec_ids": [
+        "S_ASYNC_RESET_001",
+        "S_RESET_001",
+        "S_STATE_001",
+        "S_TIMING_001"
+      ],
+      "feature_ids": [
+        "F_ASYNC_RESET_001",
+        "F_ASYNC_RESET_002",
+        "F_ASYNC_001",
+        "F_ASYNC_005"
+      ],
+      "design_item_ids": [
+        "DI_ASYNC_REG_RTL",
+        "DI_ASYNC_MEM_RTL",
+        "DI_DV_PLAN"
+      ],
+      "verification_point_ids": [
+        "V_ASYNC_RESET_001",
+        "V_ASYNC_RESET_002",
+        "V_ASYNC_RESET_003"
+      ],
+      "test_cases": [
+        "planned::dv/fifo_async_reg/tb_fifo_async_reg.cpp::CASE_ASYNC_RESET_RELEASE_PUSH_BLOCKED",
+        "planned::dv/fifo_async_reg/tb_fifo_async_reg.cpp::CASE_ASYNC_RD_RESET_FLUSH_NONEMPTY",
+        "planned::dv/fifo_async_reg/tb_fifo_async_reg.cpp::CASE_ASYNC_WR_RESET_FLUSH_NONEMPTY",
+        "planned::dv/fifo_async_mem/tb_fifo_async_mem.cpp::CASE_ASYNC_RESET_RELEASE_PUSH_BLOCKED",
+        "planned::dv/fifo_async_mem/tb_fifo_async_mem.cpp::CASE_ASYNC_RD_RESET_FLUSH_NONEMPTY",
+        "planned::dv/fifo_async_mem/tb_fifo_async_mem.cpp::CASE_ASYNC_WR_RESET_FLUSH_NONEMPTY"
+      ],
+      "result": "PLANNED for T011; no RTL/DV implementation started at confirmation recording time."
+    },
+    {
       "id": "TR_PROCESS_WORKFLOW",
       "spec_ids": [
         "S_SCOPE_001"
@@ -1592,6 +1747,38 @@
         "make verilator: PASS on 2026-06-02"
       ],
       "commit": "fa0598f"
+    },
+    {
+      "id": "I006",
+      "title": "T011 异步 reset flush 语义确认与重构计划",
+      "task_ids": [
+        "T011"
+      ],
+      "feature_scope": [
+        "F_ASYNC_RESET_001",
+        "F_ASYNC_RESET_002"
+      ],
+      "verification_scope": [
+        "V_ASYNC_RESET_001",
+        "V_ASYNC_RESET_002",
+        "V_ASYNC_RESET_003"
+      ],
+      "owner": "fifo-architect",
+      "rtl_owner": "fifo-rtl-designer",
+      "dv_owner": "fifo-dv-verifier",
+      "write_scope": [
+        "TASKS.json",
+        "docs/fifo-reset-rework-architect-plan.md",
+        "memory/project-status.md",
+        "memory/decisions.md"
+      ],
+      "status": "plan_ready",
+      "acceptance": "用户已确认 flush-on-any-side-reset、flush/alignment 期间 wr_full/rd_empty 阻塞以及 T011 范围边界；本轮只记录确认和计划，不开始 RTL/DV 重构。",
+      "validation": [
+        "jq empty TASKS.json: PASS on 2026-06-06",
+        "git tag pre-reset-rework-20260606 exists and points to review-report baseline"
+      ],
+      "commit": "this focused commit"
     }
   ],
   "validation": {
@@ -1610,19 +1797,12 @@
       "source": "T009"
     },
     "current_iteration": {
-      "id": "I005",
+      "id": "I006",
       "commands": [
         "jq empty TASKS.json",
-        "make lint",
-        "bash scripts/run_fifo_sync_mem.sh",
-        "bash scripts/run_fifo_async_reg.sh",
-        "bash scripts/run_fifo_async_mem.sh",
-        "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=8 FIFO_DEPTHS=4 bash scripts/run_fifo_async_reg.sh",
-        "FIFO_CDC_SYNC_STAGES=3 FIFO_DATA_WIDTHS=8 FIFO_DEPTHS=4 bash scripts/run_fifo_async_mem.sh",
-        "bash scripts/run_t009_boundaries.sh",
-        "make verilator"
+        "git show --no-patch --decorate --oneline pre-reset-rework-20260606"
       ],
-      "result": "PASS: T009 RTL/DV implementation, structure checks, wrapper/sync contract tests and full Verilator regression passed on 2026-06-02"
+      "result": "PLAN_READY: T011 async reset flush semantics confirmed by user on 2026-06-06; RTL/DV rework not started in this recording step."
     },
     "coverage_review": {
       "status": "pass_with_known_gaps",
@@ -1632,7 +1812,9 @@
         "异步时钟比例仍是手写 tick 交错序列，尚未系统化 sweep。",
         "当前随机压力较少，尚未加入 seed 可复现随机序列。"
       ],
-      "follow_up_tasks": []
+      "follow_up_tasks": [
+        "T011"
+      ]
     }
   },
   "modules": [
@@ -2150,6 +2332,92 @@
         }
       ],
       "commit": "6faed47"
+    },
+    {
+      "id": "T011",
+      "title": "重构异步 FIFO reset flush 语义",
+      "status": "plan_ready",
+      "owner": "fifo-architect",
+      "rtl_owner": "fifo-rtl-designer",
+      "dv_owner": "fifo-dv-verifier",
+      "change_control_id": "CCR_T011_001",
+      "feature_scope": [
+        "F_ASYNC_RESET_001",
+        "F_ASYNC_RESET_002"
+      ],
+      "verification_scope": [
+        "V_ASYNC_RESET_001",
+        "V_ASYNC_RESET_002",
+        "V_ASYNC_RESET_003"
+      ],
+      "open_questions": [],
+      "dispatch": {
+        "date": "2026-06-06",
+        "architect_scope": [
+          "TASKS.json",
+          "docs/fifo-reset-rework-architect-plan.md",
+          "docs/fifo-common-design.md",
+          "docs/fifo-design-guide.md",
+          "docs/fifo-verification-plan.md",
+          "memory/project-status.md",
+          "memory/decisions.md",
+          "memory/iterations.md"
+        ],
+        "rtl_scope_after_confirmation": [
+          "rtl/fifo_async_reg.sv",
+          "rtl/fifo_async_mem.sv",
+          "rtl/fifo_async_1r1w_mem.sv"
+        ],
+        "dv_scope_after_confirmation": [
+          "dv/fifo_async_reg/tb_fifo_async_reg.cpp",
+          "dv/fifo_async_mem/tb_fifo_async_mem.cpp",
+          "scripts/run_fifo_async_reg.sh",
+          "scripts/run_fifo_async_mem.sh",
+          "docs/fifo-verification-plan.md"
+        ],
+        "notes": "用户已确认 Q004：采用 flush-on-any-side-reset；任一侧 reset 后不保留已有数据；flush/alignment 期间写侧 wr_full=1 阻塞 push，读侧 rd_empty=1 阻塞 pop；T011 仅处理 reset/flush 语义和最小 DV 证明，CDC/RDC signoff、coverage DB、vendor macro adapter 留作后续任务。后续实现必须按三角色分工推进，RTL agent 不修改 DV 期望，DV agent 不修改 RTL。"
+      },
+      "spec_confirmed": {
+        "goals": [
+          "修复 reset/alignment 期间 wr_full=0 但 push 被丢弃的静默数据丢失风险。",
+          "修复单侧远端 reset 后 level 可能越界、full/empty 判定不可信的风险。",
+          "为异步 FIFO 建立可验证的 flush-on-any-side-reset 语义。"
+        ],
+        "non_goals": [
+          "不承诺单侧 reset 后保留 reset 前未读数据。",
+          "不在 T011 内完成静态 CDC/RDC signoff。",
+          "不在 T011 内引入 Verilator line/toggle/branch coverage closure。",
+          "不在 T011 内实现 vendor memory macro adapter。"
+        ],
+        "reset_flush_contract": [
+          "任一侧 reset 被本域或远端观察到后，异步 FIFO 进入 flush/alignment。",
+          "flush/alignment 结果是 FIFO 逻辑内容为空，reset 前已有数据不保留。",
+          "flush/alignment 期间写侧 wr_full=1 且不接受 push。",
+          "flush/alignment 期间读侧 rd_empty=1 且不接受 pop。",
+          "flush/alignment 期间 overflow/underrun 不误报。",
+          "恢复后从共同 empty 状态重新开始接受合法交易。"
+        ]
+      },
+      "acceptance": "T011 完成时必须更新 RTL/DV/docs/TASKS/memory；相关 async reset directed tests 和最窄回归通过；traceability 中 V_ASYNC_RESET_001/002/003 有实际 case/result；创建聚焦 commit。",
+      "validation": [
+        {
+          "command": "jq empty TASKS.json",
+          "result": "PASS on 2026-06-06 for confirmation-record commit"
+        },
+        {
+          "command": "make lint",
+          "result": "pending after RTL implementation"
+        },
+        {
+          "command": "bash scripts/run_fifo_async_reg.sh",
+          "result": "pending after RTL/DV implementation"
+        },
+        {
+          "command": "bash scripts/run_fifo_async_mem.sh",
+          "result": "pending after RTL/DV implementation"
+        }
+      ],
+      "commit": "pending"
     }
   ]
 }

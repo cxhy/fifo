@@ -1,6 +1,6 @@
 # FIFO Reset Rework Architect Plan
 
-**状态**: draft, pending user confirmation
+**状态**: confirmed, ready for T011 setup
 **日期**: 2026-06-06
 **角色**: fifo-architect
 **输入**: `docs/fifo-design-review-2026-06-06.md`
@@ -8,7 +8,7 @@
 
 ## 目标
 
-本计划用于确认 review 报告中的问题是否值得进入下一轮重构，并给出重构前的范围边界。用户确认本计划后，才能按 FIFO 三角色流程进入 RTL/DV 实现。
+本计划用于确认 review 报告中的问题是否值得进入下一轮重构，并给出重构前的范围边界。用户已确认本计划，T011 和 change-control 已写入任务事实源；下一步才能按 FIFO 三角色流程进入 RTL/DV 实现。
 
 核心目标是把异步 FIFO reset 语义从当前不完备的“独立 reset + 本地域 alignment”改为可验证的 reset/flush 协议：
 
@@ -274,7 +274,7 @@ make verilator
 - 当前重构前基线已打 tag：`pre-reset-rework-20260606`。
 - tag 指向 review 报告提交：`180e44c docs: add fifo design review report`。
 
-待用户确认后：
+后续执行计划：
 
 1. commit: `chore: plan async reset rework`
 2. commit: `docs: confirm async reset flush semantics`
@@ -284,8 +284,12 @@ make verilator
 
 最终 commit 数量可按实际调试过程调整，但每个 commit 必须保持单一职责。
 
-## 需要用户确认的问题
+## 用户确认记录
 
-1. 是否确认异步 FIFO 采用 flush-on-any-side-reset 语义，即任一侧 reset 后不保留 FIFO 中已有数据？
-2. 是否确认 flush/alignment 期间写侧以 `wr_full=1` 对外阻塞 push，读侧以 `rd_empty=1` 对外阻塞 pop？
-3. 是否确认 T011 只处理 reset/flush 语义和最小 DV 证明，CDC/RDC signoff、coverage DB、vendor macro adapter 留作后续任务？
+确认日期：2026-06-06
+
+1. 已确认：异步 FIFO 采用 flush-on-any-side-reset 语义，即任一侧 reset 后不保留 FIFO 中已有数据。
+2. 已确认：flush/alignment 期间写侧以 `wr_full=1` 对外阻塞 push，读侧以 `rd_empty=1` 对外阻塞 pop。
+3. 已确认：T011 只处理 reset/flush 语义和最小 DV 证明，CDC/RDC signoff、coverage DB、vendor macro adapter 留作后续任务。
+
+后续实现必须引用 `TASKS.json` 中的 `CCR_T011_001`、`F_ASYNC_RESET_*` 和 `V_ASYNC_RESET_*`，不能只依赖本文件或聊天上下文。
