@@ -31,7 +31,7 @@ run_case() {
     -CFLAGS "-std=c++17 -DDATA_WIDTH_VALUE=${dw} -DDEPTH_VALUE=${depth} -DCDC_SYNC_STAGES_VALUE=${cdc_sync_stages}" --build
   "${mdir}/Vfifo_async_mem"
   positive_count=$((positive_count + 1))
-  echo "COVER fifo_async_mem positive DATA_WIDTH=${dw} DEPTH=${depth}"
+  echo "COVER fifo_async_mem positive DATA_WIDTH=${dw} DEPTH=${depth} reset_flush_cases=5"
 }
 
 run_illegal_waterline() {
@@ -74,6 +74,29 @@ run_illegal_depth() {
   echo "COVER fifo_async_mem negative non_power_of_two_depth=runtime_assertion"
 }
 
+run_illegal_cdc_sync_stages() {
+  local mdir="build/fifo_async_mem/negative_cdc_sync_stages"
+  mkdir -p "${mdir}"
+  set +e
+  verilator --cc "${rtl_files[@]}" --top-module fifo_async_mem --exe dv/fifo_async_mem/tb_illegal_config.cpp \
+    --Mdir "${mdir}" --assert -Wall -Wno-fatal \
+    -GDATA_WIDTH=8 -GDEPTH=4 -GCDC_SYNC_STAGES=1 \
+    -CFLAGS "-std=c++17 -DDEPTH_VALUE=4 -DILLEGAL_POWER_OF_TWO_DEPTH=1" --build
+  local build_rc=$?
+  set -e
+  if [[ "${build_rc}" -ne 0 ]]; then
+    negative_count=$((negative_count + 1))
+    echo "COVER fifo_async_mem negative cdc_sync_stages_1=elaboration_rejected"
+    return
+  fi
+  if "${mdir}/Vfifo_async_mem"; then
+    echo "ERROR: CDC_SYNC_STAGES=1 did not trigger an assertion." >&2
+    exit 1
+  fi
+  negative_count=$((negative_count + 1))
+  echo "COVER fifo_async_mem negative cdc_sync_stages_1=runtime_assertion"
+}
+
 for dw in "${data_widths[@]}"; do
   for depth in "${depths[@]}"; do
     run_case "${dw}" "${depth}"
@@ -83,8 +106,9 @@ done
 run_illegal_waterline "illegal_almost_full" "ILLEGAL_ALMOST_FULL"
 run_illegal_waterline "illegal_almost_empty" "ILLEGAL_ALMOST_EMPTY"
 run_illegal_depth
+run_illegal_cdc_sync_stages
 
 expected_positive=$((${#data_widths[@]} * ${#depths[@]}))
-expected_negative=3
-echo "COVERAGE fifo_async_mem positive_matrix=${positive_count}/${expected_positive} data_widths=${data_widths[*]} depths=${depths[*]} cdc_sync_stages=${cdc_sync_stages} negative_cases=${negative_count}/${expected_negative}"
-echo "PASS fifo_async_mem T008/T009 regression"
+expected_negative=4
+echo "COVERAGE fifo_async_mem positive_matrix=${positive_count}/${expected_positive} data_widths=${data_widths[*]} depths=${depths[*]} cdc_sync_stages=${cdc_sync_stages} reset_flush_cases=5/5 negative_cases=${negative_count}/${expected_negative}"
+echo "PASS fifo_async_mem T008/T009/T011 regression"

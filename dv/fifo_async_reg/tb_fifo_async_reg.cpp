@@ -56,6 +56,10 @@ struct AsyncScoreboard {
         q.clear();
         last_pop_data = 0;
     }
+
+    void flush_contents() {
+        q.clear();
+    }
 };
 
 void eval(Vfifo_async_reg &dut) {
@@ -63,24 +67,40 @@ void eval(Vfifo_async_reg &dut) {
     ++g_time;
 }
 
-void check_wr_status(Vfifo_async_reg &dut, const AsyncScoreboard &ref) {
+void fail_case(const char *case_name, const std::string &msg) {
+    fail(std::string(case_name) + ": " + msg);
+}
+
+void expect_case_eq(const char *case_name, const char *name, uint32_t got, uint32_t exp) {
+    if (got != exp) {
+        char buf[256];
+        std::snprintf(buf, sizeof(buf), "%s got 0x%x expected 0x%x", name, got, exp);
+        fail_case(case_name, buf);
+    }
+}
+
+void cover_case(const char *case_name) {
+    std::printf("COVER fifo_async_reg %s\n", case_name);
+}
+
+void check_wr_status(Vfifo_async_reg &dut, const AsyncScoreboard &ref, bool allow_flush = false) {
     if (dut.wr_level > kDepth) {
         fail("wr_level above DEPTH");
     }
-    if (dut.wr_level < ref.q.size()) {
+    if (!allow_flush && dut.wr_level < ref.q.size()) {
         fail("wr_level underestimates actual occupancy");
     }
     expect_eq("wr_almost_full", dut.wr_almost_full, dut.wr_level >= dut.cfg_almost_full_level);
-    if (dut.wr_full && dut.wr_level != kDepth) {
+    if (!allow_flush && dut.wr_full && dut.wr_level != kDepth) {
         fail("wr_full asserted without full conservative level");
     }
 }
 
-void check_rd_status(Vfifo_async_reg &dut, const AsyncScoreboard &ref) {
+void check_rd_status(Vfifo_async_reg &dut, const AsyncScoreboard &ref, bool allow_flush = false) {
     if (dut.rd_level > kDepth) {
         fail("rd_level above DEPTH");
     }
-    if (dut.rd_level > ref.q.size()) {
+    if (!allow_flush && dut.rd_level > ref.q.size()) {
         fail("rd_level overestimates actual readable occupancy");
     }
     expect_eq("rd_almost_empty", dut.rd_almost_empty, dut.rd_level <= dut.cfg_almost_empty_level);
@@ -136,6 +156,128 @@ void rd_tick(Vfifo_async_reg &dut, AsyncScoreboard &ref, bool pop) {
     eval(dut);
 }
 
+void wr_flush_tick(Vfifo_async_reg &dut,
+                   AsyncScoreboard &ref,
+                   bool push,
+                   uint32_t data,
+                   const char *case_name,
+                   bool require_wr_full) {
+    dut.push = push;
+    dut.push_data = data & kMask;
+    dut.wr_clk = 0;
+    eval(dut);
+    if (require_wr_full && !dut.wr_full) {
+        fail_case(case_name, "wr_full was not asserted during flush/alignment");
+    }
+    check_wr_status(dut, ref, true);
+    dut.wr_clk = 1;
+    eval(dut);
+
+    expect_case_eq(case_name, "overflow", dut.overflow, 0);
+    check_wr_status(dut, ref, true);
+
+    dut.wr_clk = 0;
+    eval(dut);
+}
+
+void rd_flush_tick(Vfifo_async_reg &dut,
+                   AsyncScoreboard &ref,
+                   bool pop,
+                   const char *case_name,
+                   bool require_rd_empty) {
+    dut.pop = pop;
+    dut.rd_clk = 0;
+    eval(dut);
+    if (require_rd_empty && !dut.rd_empty) {
+        fail_case(case_name, "rd_empty was not asserted during flush/alignment");
+    }
+    check_rd_status(dut, ref, true);
+    dut.rd_clk = 1;
+    eval(dut);
+
+    expect_case_eq(case_name, "underrun", dut.underrun, 0);
+    expect_case_eq(case_name, "pop_data", dut.pop_data, ref.last_pop_data);
+    check_rd_status(dut, ref, true);
+
+    dut.rd_clk = 0;
+    eval(dut);
+}
+
+void expect_common_empty_after_flush(Vfifo_async_reg &dut,
+                                     AsyncScoreboard &ref,
+                                     const char *case_name) {
+    if (dut.wr_full) {
+        fail_case(case_name, "wr_full remained asserted after flush/alignment");
+    }
+    if (!dut.rd_empty) {
+        fail_case(case_name, "rd_empty was not asserted after flush/alignment");
+    }
+    expect_case_eq(case_name, "wr_level", dut.wr_level, 0);
+    expect_case_eq(case_name, "rd_level", dut.rd_level, 0);
+    check_wr_status(dut, ref);
+    check_rd_status(dut, ref);
+}
+
+void wait_common_empty_after_flush(Vfifo_async_reg &dut,
+                                   AsyncScoreboard &ref,
+                                   const char *case_name) {
+    constexpr int kFlushSettleCycles = 4 * kCdcSyncStages + 12;
+    for (int i = 0; i < kFlushSettleCycles; ++i) {
+        if (dut.wr_rst_n && dut.rd_rst_n && !dut.wr_full && dut.rd_empty &&
+            dut.wr_level == 0 && dut.rd_level == 0) {
+            expect_common_empty_after_flush(dut, ref, case_name);
+            return;
+        }
+        wr_flush_tick(dut, ref, false, 0, case_name, false);
+        rd_flush_tick(dut, ref, false, case_name, false);
+    }
+    fail_case(case_name, "FIFO did not recover to common empty after flush/alignment");
+}
+
+void wait_wr_flush_observed(Vfifo_async_reg &dut,
+                            AsyncScoreboard &ref,
+                            const char *case_name,
+                            bool pre_reset_full = false) {
+    constexpr int kFlushObserveCycles = 2 * kCdcSyncStages + 8;
+    const int min_observe_cycles = pre_reset_full ? kCdcSyncStages + 1 : 0;
+    for (int i = 0; i < kFlushObserveCycles; ++i) {
+        dut.push = 0;
+        dut.wr_clk = 0;
+        eval(dut);
+        check_wr_status(dut, ref, true);
+        if (dut.wr_full && i >= min_observe_cycles) {
+            return;
+        }
+        dut.wr_clk = 1;
+        eval(dut);
+        expect_case_eq(case_name, "overflow", dut.overflow, 0);
+        check_wr_status(dut, ref, true);
+        dut.wr_clk = 0;
+        eval(dut);
+    }
+    fail_case(case_name, "write domain did not observe reset flush as wr_full");
+}
+
+void wait_rd_flush_observed(Vfifo_async_reg &dut, AsyncScoreboard &ref, const char *case_name) {
+    constexpr int kFlushObserveCycles = 2 * kCdcSyncStages + 8;
+    for (int i = 0; i < kFlushObserveCycles; ++i) {
+        dut.pop = 0;
+        dut.rd_clk = 0;
+        eval(dut);
+        check_rd_status(dut, ref, true);
+        if (dut.rd_empty) {
+            return;
+        }
+        dut.rd_clk = 1;
+        eval(dut);
+        expect_case_eq(case_name, "underrun", dut.underrun, 0);
+        check_rd_status(dut, ref, true);
+        dut.rd_clk = 0;
+        eval(dut);
+    }
+    fail_case(case_name, "read domain did not observe reset flush as rd_empty");
+}
+
 void idle_both(Vfifo_async_reg &dut, AsyncScoreboard &ref, int wr_cycles, int rd_cycles) {
     for (int i = 0; i < wr_cycles; ++i) {
         wr_tick(dut, ref, false, 0);
@@ -170,17 +312,20 @@ void drive_reset(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
     }
     ref.reset_all();
     expect_eq("reset pop_data", dut.pop_data, 0);
-    expect_eq("reset wr_full", dut.wr_full, 0);
     expect_eq("reset rd_empty", dut.rd_empty, 1);
+    if (dut.wr_level > kDepth || dut.rd_level > kDepth) {
+        fail("reset level above DEPTH");
+    }
 
     dut.wr_rst_n = 1;
     for (int i = 0; i < kCdcSyncStages + 1; ++i) {
-        wr_tick(dut, ref, false, 0);
+        wr_flush_tick(dut, ref, false, 0, "drive_reset", false);
     }
     dut.rd_rst_n = 1;
     for (int i = 0; i < kCdcSyncStages + 1; ++i) {
-        rd_tick(dut, ref, false);
+        rd_flush_tick(dut, ref, false, "drive_reset", false);
     }
+    wait_common_empty_after_flush(dut, ref, "drive_reset");
 }
 
 void wait_rd_visible(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
@@ -223,6 +368,24 @@ void drain_all(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
     }
 }
 
+void write_one_visible(Vfifo_async_reg &dut, AsyncScoreboard &ref, uint32_t data) {
+    wr_tick(dut, ref, true, data);
+    wait_rd_visible(dut, ref);
+    if (ref.q.empty() || dut.rd_empty) {
+        fail("failed to establish non-empty async FIFO state");
+    }
+}
+
+void push_reuse_sequence(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
+    const int count = (kDepth >= 2) ? 2 : 1;
+    for (int i = 0; i < count; ++i) {
+        wr_tick(dut, ref, true, 0x60u + static_cast<uint32_t>(i));
+        rd_tick(dut, ref, false);
+    }
+    drain_all(dut, ref);
+    wait_common_empty_after_flush(dut, ref, "CASE_ASYNC_POST_FLUSH_REUSE");
+}
+
 void test_independent_reset(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
     drive_reset(dut, ref);
     wr_tick(dut, ref, true, 0x31);
@@ -240,10 +403,10 @@ void test_independent_reset(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
     expect_eq("rd reset release held zero", dut.pop_data, 0);
 
     dut.wr_rst_n = 0;
-    wr_tick(dut, ref, false, 0);
-    expect_eq("wr reset wr_full", dut.wr_full, 0);
+    ref.flush_contents();
+    wr_flush_tick(dut, ref, false, 0, "test_independent_reset", false);
     dut.wr_rst_n = 1;
-    wr_tick(dut, ref, false, 0);
+    wait_common_empty_after_flush(dut, ref, "test_independent_reset");
 }
 
 void test_async_order_and_errors(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
@@ -291,6 +454,110 @@ void test_wraparound_cdc_sequence(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
     drain_all(dut, ref);
 }
 
+void test_case_async_reset_release_push_blocked(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
+    constexpr const char *kCase = "CASE_ASYNC_RESET_RELEASE_PUSH_BLOCKED";
+    drive_reset(dut, ref);
+
+    dut.wr_rst_n = 0;
+    dut.rd_rst_n = 0;
+    ref.reset_all();
+    wr_flush_tick(dut, ref, false, 0, kCase, false);
+    rd_flush_tick(dut, ref, false, kCase, false);
+
+    dut.wr_rst_n = 1;
+    eval(dut);
+    wr_flush_tick(dut, ref, true, 0x51, kCase, true);
+    if (!ref.q.empty()) {
+        fail_case(kCase, "push was accepted during reset release flush");
+    }
+
+    dut.rd_rst_n = 1;
+    eval(dut);
+    rd_flush_tick(dut, ref, true, kCase, true);
+    wait_common_empty_after_flush(dut, ref, kCase);
+    cover_case(kCase);
+}
+
+void test_case_async_rd_reset_flush_nonempty(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
+    constexpr const char *kCase = "CASE_ASYNC_RD_RESET_FLUSH_NONEMPTY";
+    drive_reset(dut, ref);
+    write_one_visible(dut, ref, 0x21);
+    const bool pre_reset_full = ref.q.size() >= static_cast<size_t>(kDepth);
+
+    dut.rd_rst_n = 0;
+    ref.reset_all();
+    rd_flush_tick(dut, ref, false, kCase, false);
+
+    wait_wr_flush_observed(dut, ref, kCase, pre_reset_full);
+    wr_flush_tick(dut, ref, true, 0x22, kCase, true);
+
+    dut.rd_rst_n = 1;
+    eval(dut);
+    rd_flush_tick(dut, ref, true, kCase, true);
+    wait_common_empty_after_flush(dut, ref, kCase);
+    cover_case(kCase);
+}
+
+void test_case_async_wr_reset_flush_nonempty(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
+    constexpr const char *kCase = "CASE_ASYNC_WR_RESET_FLUSH_NONEMPTY";
+    drive_reset(dut, ref);
+    write_one_visible(dut, ref, 0x31);
+
+    dut.wr_rst_n = 0;
+    ref.flush_contents();
+    wr_flush_tick(dut, ref, false, 0, kCase, false);
+
+    wait_rd_flush_observed(dut, ref, kCase);
+    rd_flush_tick(dut, ref, true, kCase, true);
+
+    dut.wr_rst_n = 1;
+    eval(dut);
+    wr_flush_tick(dut, ref, true, 0x32, kCase, true);
+    wait_common_empty_after_flush(dut, ref, kCase);
+    cover_case(kCase);
+}
+
+void test_case_async_reset_with_active_req(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
+    constexpr const char *kCase = "CASE_ASYNC_RESET_WITH_ACTIVE_REQ";
+    drive_reset(dut, ref);
+    write_one_visible(dut, ref, 0x41);
+
+    dut.push = 1;
+    dut.push_data = 0x42 & kMask;
+    dut.pop = 1;
+    dut.wr_rst_n = 0;
+    dut.rd_rst_n = 0;
+    ref.reset_all();
+    wr_flush_tick(dut, ref, true, 0x42, kCase, false);
+    rd_flush_tick(dut, ref, true, kCase, false);
+
+    dut.wr_rst_n = 1;
+    dut.rd_rst_n = 1;
+    eval(dut);
+    wr_flush_tick(dut, ref, true, 0x43, kCase, true);
+    rd_flush_tick(dut, ref, true, kCase, true);
+    wait_common_empty_after_flush(dut, ref, kCase);
+    cover_case(kCase);
+}
+
+void test_case_async_post_flush_reuse(Vfifo_async_reg &dut, AsyncScoreboard &ref) {
+    constexpr const char *kCase = "CASE_ASYNC_POST_FLUSH_REUSE";
+    drive_reset(dut, ref);
+    write_one_visible(dut, ref, 0x71);
+    const bool pre_reset_full = ref.q.size() >= static_cast<size_t>(kDepth);
+
+    dut.rd_rst_n = 0;
+    ref.reset_all();
+    rd_flush_tick(dut, ref, false, kCase, false);
+    wait_wr_flush_observed(dut, ref, kCase, pre_reset_full);
+    dut.rd_rst_n = 1;
+    eval(dut);
+    wait_common_empty_after_flush(dut, ref, kCase);
+
+    push_reuse_sequence(dut, ref);
+    cover_case(kCase);
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -301,6 +568,11 @@ int main(int argc, char **argv) {
     test_independent_reset(dut, ref);
     test_async_order_and_errors(dut, ref);
     test_wraparound_cdc_sequence(dut, ref);
+    test_case_async_reset_release_push_blocked(dut, ref);
+    test_case_async_rd_reset_flush_nonempty(dut, ref);
+    test_case_async_wr_reset_flush_nonempty(dut, ref);
+    test_case_async_reset_with_active_req(dut, ref);
+    test_case_async_post_flush_reuse(dut, ref);
 
     std::printf("PASS fifo_async_reg DATA_WIDTH=%d DEPTH=%d\n", kDataWidth, kDepth);
     return 0;
