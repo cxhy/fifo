@@ -81,7 +81,7 @@ run_illegal_cdc_sync_stages() {
   verilator --cc "${rtl_files[@]}" --top-module fifo_async_reg --exe dv/fifo_async_reg/tb_illegal_config.cpp \
     --Mdir "${mdir}" --assert -Wall -Wno-fatal \
     -GDATA_WIDTH=8 -GDEPTH=4 -GCDC_SYNC_STAGES=1 \
-    -CFLAGS "-std=c++17 -DDEPTH_VALUE=4 -DILLEGAL_POWER_OF_TWO_DEPTH=1" --build
+    -CFLAGS "-std=c++17 -DDEPTH_VALUE=4 -DILLEGAL_CDC_SYNC_STAGES=1" --build
   local build_rc=$?
   set -e
   if [[ "${build_rc}" -ne 0 ]]; then

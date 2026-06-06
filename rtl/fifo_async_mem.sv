@@ -84,7 +84,11 @@ module fifo_async_mem #(
     endfunction
 
     function automatic logic [LEVEL_WIDTH-1:0] clamp_level(input logic [PTR_WIDTH-1:0] level_raw);
-        if (level_raw > DEPTH_PTR) begin
+        if (DEPTH <= 1) begin
+            clamp_level = level_raw[LEVEL_WIDTH-1:0];
+        /* verilator lint_off CMPCONST */
+        end else if (level_raw > DEPTH_PTR) begin
+        /* verilator lint_on CMPCONST */
             clamp_level = DEPTH_LEVEL;
         end else begin
             clamp_level = level_raw[LEVEL_WIDTH-1:0];

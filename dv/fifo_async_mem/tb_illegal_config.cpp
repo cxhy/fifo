@@ -19,7 +19,11 @@ namespace {
 #define ILLEGAL_POWER_OF_TWO_DEPTH 0
 #endif
 
-#if (ILLEGAL_ALMOST_FULL + ILLEGAL_ALMOST_EMPTY + ILLEGAL_POWER_OF_TWO_DEPTH) != 1
+#ifndef ILLEGAL_CDC_SYNC_STAGES
+#define ILLEGAL_CDC_SYNC_STAGES 0
+#endif
+
+#if (ILLEGAL_ALMOST_FULL + ILLEGAL_ALMOST_EMPTY + ILLEGAL_POWER_OF_TWO_DEPTH + ILLEGAL_CDC_SYNC_STAGES) != 1
 #error "Define exactly one illegal configuration mode"
 #endif
 
@@ -55,7 +59,7 @@ int main(int argc, char **argv) {
     dut.cfg_almost_full_level = kDepth;
     dut.cfg_almost_empty_level = 0;
 
-#if ILLEGAL_POWER_OF_TWO_DEPTH
+#if ILLEGAL_POWER_OF_TWO_DEPTH || ILLEGAL_CDC_SYNC_STAGES
     wr_cycle(dut);
     rd_cycle(dut);
     return 0;
